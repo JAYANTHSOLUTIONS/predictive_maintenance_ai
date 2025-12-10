@@ -1,0 +1,19 @@
+# Backend
+fastapi
+uvicorn
+pydantic
+python-dotenv
+
+# AI Agents (OpenRouter/Mistral)
+langchain
+langchain-openai
+langgraph
+
+# Frontend
+streamlit
+pandas
+requests
+
+# Utils
+httpx
+pytest
