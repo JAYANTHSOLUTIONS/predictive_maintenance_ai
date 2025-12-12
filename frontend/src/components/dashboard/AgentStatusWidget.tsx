@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Brain, Eye, Calendar, ShieldCheck, MessageSquare, Wrench } from 'lucide-react';
 
+
 const agents = [
   { name: 'Master Agent', status: 'active', icon: Brain, color: 'text-purple-600', bgColor: 'bg-purple-100' },
   { name: 'Monitoring Agent', status: 'scanning', icon: Eye, color: 'text-blue-600', bgColor: 'bg-blue-100', activity: 'Scanning Live Data' },

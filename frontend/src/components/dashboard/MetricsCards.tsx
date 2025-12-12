@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { TrendingUp, TrendingDown, AlertTriangle, Calendar, Activity } from 'lucide-react';
 
+
 const metrics = [
   {
     title: 'Vehicle Uptime',

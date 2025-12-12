@@ -3,6 +3,7 @@ import { Badge } from '../ui/badge';
 import { ScrollArea } from '../ui/scroll-area';
 import { Wrench, Phone, Calendar, Shield, CheckCircle, AlertCircle } from 'lucide-react';
 
+
 const activities = [
   {
     id: 1,

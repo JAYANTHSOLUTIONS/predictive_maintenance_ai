@@ -3,6 +3,7 @@ import { MetricsCards } from './MetricsCards';
 import { FleetMap } from './FleetMap';
 import { ActivityFeed } from './ActivityFeed';
 
+
 export function MasterDashboard() {
   return (
     <div className="space-y-6">
