@@ -6,7 +6,7 @@ export function Scheduling() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl mb-2">Service Scheduling & Demand Forecasting</h1>
+        <h1 className="text-3xl mb-2 font-bold text-slate-900">Service Scheduling & Demand Forecasting</h1>
         <p className="text-slate-600">AI-powered scheduling optimization and capacity planning</p>
       </div>
 

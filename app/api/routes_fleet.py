@@ -1,12 +1,12 @@
 import os
 import json
 from fastapi import APIRouter
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 router = APIRouter()
 
-# Response Model (Matches React Table)
+# 1. RESPONSE MODEL (Updated with scheduled_date)
 class VehicleSummary(BaseModel):
     vin: str
     model: str
@@ -15,18 +15,17 @@ class VehicleSummary(BaseModel):
     predictedFailure: str
     probability: int
     action: str
+    scheduled_date: Optional[str] = None  # <--- NEW FIELD
 
-# 1. DEFINE PATHS
+# 2. PATHS
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DATA_FILE = os.path.join(BASE_DIR, "data_samples", "collected_data.json")
-LOG_DIR = os.path.join(BASE_DIR, "data_samples") # Where run_log_V-101.json lives
+LOG_DIR = os.path.join(BASE_DIR, "data_samples")
 
 @router.get("/status", response_model=List[VehicleSummary])
 async def get_fleet_status():
     """
-    Aggregates data from:
-    1. collected_data.json (The Fleet List)
-    2. run_log_{id}.json (The Latest AI Analysis for each truck)
+    Returns the fleet list merged with AI logs and scheduling data.
     """
     if not os.path.exists(DATA_FILE):
         return []
@@ -40,13 +39,13 @@ async def get_fleet_status():
         summary_list = []
 
         for v_id, v_data in vehicles.items():
-            # --- DEFAULT VALUES (If AI hasn't run yet) ---
+            # --- DEFAULT VALUES ---
             failure = "System Healthy"
             prob = 0
             action = "Monitoring"
+            s_date = None # <--- Variable for date
             
             # --- CHECK FOR AI LOGS ---
-            # We look for a file named "run_log_V-101.json"
             log_path = os.path.join(LOG_DIR, f"run_log_{v_id}.json")
             
             if os.path.exists(log_path):
@@ -60,14 +59,15 @@ async def get_fleet_status():
                         # 2. Get Predicted Failure
                         issues = ai_result.get("detected_issues", [])
                         if issues:
-                            failure = issues[0]  # Take the top issue
+                            failure = issues[0]
                         elif prob > 50:
                             failure = "Unknown Anomaly"
                         
-                        # 3. Get Action Status
+                        # 3. Get Action Status & Date
                         decision = ai_result.get("customer_decision")
                         if decision == "accept":
                             action = "Service Booked"
+                            s_date = ai_result.get("scheduled_date") # <--- READ DATE FROM LOG
                         elif decision == "reject":
                             action = "Customer Contacted"
                         elif prob > 70:
@@ -80,11 +80,12 @@ async def get_fleet_status():
             summary_list.append(VehicleSummary(
                 vin=v_id,
                 model=v_data.get("metadata", {}).get("model", "HeavyHaul X5"),
-                location="Delhi, IN", # Mock location
+                location="Delhi, IN",
                 telematics="Live",
                 predictedFailure=failure,
                 probability=prob,
-                action=action
+                action=action,
+                scheduled_date=s_date # <--- PASS TO FRONTEND
             ))
         
         return summary_list

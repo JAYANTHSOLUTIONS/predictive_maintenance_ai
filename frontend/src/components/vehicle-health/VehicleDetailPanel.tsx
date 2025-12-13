@@ -6,8 +6,11 @@ import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
-// ✅ FIXED IMPORTS: Now importing the Interfaces along with 'api'
+// ✅ IMPORT API & INTERFACES
 import { api, TelematicsData, AnalysisResult } from '../../services/api';
+
+// ✅ NEW: IMPORT THE BOOKING MODAL
+import { ServiceBookingModal } from './ServiceBookingModal';
 
 interface VehicleDetailPanelProps {
   vehicleId: string;
@@ -20,6 +23,9 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [chartData, setChartData] = useState<any[]>([]); 
+  
+  // ✅ NEW: Modal State
+  const [showBooking, setShowBooking] = useState(false);
 
   // 2. LIVE DATA FETCHING & GRAPH UPDATE
   useEffect(() => {
@@ -48,7 +54,7 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
     return () => clearInterval(interval);
   }, [vehicleId]);
 
-  // 3. AI DIAGNOSIS ACTION
+  // 3. AI DIAGNOSIS ACTION (Refreshes Analysis)
   const handleRunAI = async () => {
     setLoading(true);
     try {
@@ -196,18 +202,31 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
             </CardContent>
           </Card>
 
-          {/* Action Buttons */}
+          {/* ACTION BUTTONS (Updated with Logic) */}
           {analysis && (
               <div className="flex space-x-3 pb-6">
-                <Button className="flex-1 bg-green-600 hover:bg-green-700">
+                <Button 
+                    className={`flex-1 ${analysis.booking_id ? "bg-slate-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                    onClick={() => !analysis.booking_id && setShowBooking(true)}
+                    disabled={!!analysis.booking_id}
+                >
                     <CheckCircle className="w-4 h-4 mr-2"/> 
-                    {analysis.booking_id ? "Service Confirmed" : "Book Service"}
+                    {analysis.booking_id ? `Service Confirmed (ID: ${analysis.booking_id})` : "Book Service"}
                 </Button>
                 <Button variant="outline" className="flex-1">Contact Owner</Button>
               </div>
           )}
         </div>
       </div>
+
+      {/* ✅ BOOKING MODAL (Conditionally Rendered) */}
+      {showBooking && (
+        <ServiceBookingModal 
+            vehicleId={vehicleId} 
+            onClose={() => setShowBooking(false)} 
+            onSuccess={() => handleRunAI()} // Re-run fetch to see the new booking ID
+        />
+      )}
     </div>
   );
 }

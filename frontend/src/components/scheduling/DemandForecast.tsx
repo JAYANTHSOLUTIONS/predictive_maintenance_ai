@@ -1,8 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'; // ✅ Fixed path
+import { Badge } from '../ui/badge'; // ✅ Fixed path
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Area, AreaChart } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 
+// Static Data for Demo (You can replace this with API data later)
 const forecastData = [
   { date: 'Dec 12', demand: 145, capacity: 180, actual: 142 },
   { date: 'Dec 13', demand: 158, capacity: 180, actual: null },
@@ -54,7 +55,7 @@ export function DemandForecast() {
               <p className="text-sm text-slate-600">Capacity Alert</p>
               <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-red-600" />
-                <span className="text-red-600">{overCapacityDays} days over capacity</span>
+                <span className="text-red-600 font-bold">{overCapacityDays} days over capacity</span>
               </div>
             </div>
             <Badge variant="secondary" className="bg-blue-100 text-blue-700">
@@ -109,25 +110,27 @@ export function DemandForecast() {
             )}
           </AreaChart>
         </ResponsiveContainer>
+        
+        {/* KPI Summary */}
         <div className="grid grid-cols-4 gap-4 mt-6">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <p className="text-xs text-slate-600">Today's Demand</p>
-            <p className="text-2xl text-blue-600">145</p>
+            <p className="text-2xl text-blue-600 font-bold">145</p>
             <p className="text-xs text-blue-600 mt-1">80.5% of capacity</p>
           </div>
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
             <p className="text-xs text-slate-600">Peak Day (Dec 23)</p>
-            <p className="text-2xl text-amber-600">195</p>
+            <p className="text-2xl text-amber-600 font-bold">195</p>
             <p className="text-xs text-amber-600 mt-1">108% of capacity</p>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-xs text-slate-600">Current Capacity</p>
-            <p className="text-2xl text-green-600">180</p>
+            <p className="text-2xl text-green-600 font-bold">180</p>
             <p className="text-xs text-green-600 mt-1">per day</p>
           </div>
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
             <p className="text-xs text-slate-600">Auto-Scheduled</p>
-            <p className="text-2xl text-purple-600">85%</p>
+            <p className="text-2xl text-purple-600 font-bold">85%</p>
             <p className="text-xs text-purple-600 mt-1">by AI agents</p>
           </div>
         </div>

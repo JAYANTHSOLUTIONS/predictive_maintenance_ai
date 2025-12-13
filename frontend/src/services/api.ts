@@ -26,7 +26,7 @@ export interface AnalysisResult {
   ueba_alerts: Array<{ message: string; agent: string }>;
 }
 
-// For the Fleet Table (MISSING BEFORE)
+// For the Fleet Table & Calendar
 export interface VehicleSummary {
   vin: string;
   model: string;
@@ -35,6 +35,14 @@ export interface VehicleSummary {
   predictedFailure: string;
   probability: number;
   action: string;
+  scheduled_date?: string; // ✅ NEW: Critical for the Calendar!
+}
+
+// Interface for Booking Response
+export interface BookingResponse {
+  status: string;
+  booking_id: string;
+  message: string;
 }
 
 // --- 2. THE API BRIDGE ---
@@ -64,16 +72,29 @@ export const api = {
     }
   },
 
-  // Get Fleet Overview (MISSING BEFORE)
+  // Get Fleet Overview (Table & Calendar)
   getFleetStatus: async (): Promise<VehicleSummary[]> => {
     try {
-      // Note: We need to create this endpoint in Python next if it's not there yet.
-      // If Python throws 404, this returns an empty list so React won't crash.
       const response = await axios.get(`${API_BASE_URL}/fleet/status`);
       return response.data;
     } catch (e) {
-      console.warn("Fleet endpoint not ready yet, returning empty list.");
+      console.warn("Fleet endpoint error (or not ready):", e);
       return [];
+    }
+  },
+
+  // Schedule Repair Function
+  scheduleRepair: async (vehicleId: string, date: string, notes: string): Promise<BookingResponse> => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/schedule/create`, {
+        vehicle_id: vehicleId,
+        service_date: date,
+        notes: notes
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Booking failed:", error);
+      throw error;
     }
   }
 };
