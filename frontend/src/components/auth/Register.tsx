@@ -5,15 +5,18 @@ import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Progress } from '../ui/progress';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
 
 interface RegisterProps {
-  onRegister: () => void;
+  onRegister: (token: string) => void;
   onSwitchToLogin: () => void;
 }
 
 export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -25,16 +28,63 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   });
 
   const handleNext = () => {
+    setError("");
+    if (step === 1) {
+        if (!formData.fullName || !formData.email || !formData.password) {
+            setError("Please fill in all fields");
+            return;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setError("Passwords do not match");
+            return;
+        }
+    }
+    if (step === 2 && !formData.role) {
+        setError("Please select a role");
+        return;
+    }
+    
     if (step < 3) setStep(step + 1);
   };
 
   const handleBack = () => {
+    setError("");
     if (step > 1) setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onRegister();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+           fullName: formData.fullName,
+           email: formData.email,
+           password: formData.password,
+           role: formData.role, 
+           location: formData.location,
+           plant: formData.plant
+        }),
+      });
+
+      if (response.ok) {
+        // --- THE FIX IS HERE ---
+        // 1. We do NOT call onRegister(token) anymore.
+        // 2. Instead, we show a success message and switch to the Login screen.
+        alert("Registration successful! Please sign in with your new account.");
+        onSwitchToLogin(); 
+      } else {
+        setError("Registration failed. Email might exist.");
+      }
+    } catch (err) {
+      setError("Network error. Is Spring Boot running?");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const progress = (step / 3) * 100;
@@ -42,9 +92,10 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-8">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8">
+        
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl mb-2">Create Your Account</h1>
+          <h1 className="text-3xl mb-2 font-bold">Create Your Account</h1>
           <p className="text-slate-600">Join the OEM Aftersales Intelligence Platform</p>
         </div>
 
@@ -56,16 +107,16 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
           </div>
           <Progress value={progress} />
           <div className="flex justify-between mt-3 text-xs text-slate-600">
-            <span className={step === 1 ? 'text-blue-600' : ''}>Account Details</span>
-            <span className={step === 2 ? 'text-blue-600' : ''}>Role Selection</span>
-            <span className={step === 3 ? 'text-blue-600' : ''}>Location Assignment</span>
+            <span className={step >= 1 ? 'text-blue-600 font-medium' : ''}>Account Details</span>
+            <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Role Selection</span>
+            <span className={step >= 3 ? 'text-blue-600 font-medium' : ''}>Location Assignment</span>
           </div>
         </div>
 
         <form onSubmit={handleSubmit}>
           {/* Step 1: Account Details */}
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
                 <Label htmlFor="fullName">Full Name</Label>
                 <Input
@@ -89,73 +140,77 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                   required
                 />
               </div>
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Create a strong password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="mt-1"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Re-enter your password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="mt-1"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                    id="password"
+                    type="password"
+                    placeholder="Strong password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="mt-1"
+                    required
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Re-enter password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    className="mt-1"
+                    required
+                    />
+                </div>
               </div>
             </div>
           )}
 
           {/* Step 2: Role Selection */}
           {step === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
                 <Label>Select Your Role</Label>
                 <RadioGroup
                   value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, role: value })}
                   className="mt-3 space-y-3"
                 >
-                  <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-slate-50 cursor-pointer">
+                  <div className={`flex items-start space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${formData.role === 'service-manager' ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
                     <RadioGroupItem value="service-manager" id="service-manager" className="mt-1" />
-                    <div>
-                      <Label htmlFor="service-manager" className="cursor-pointer">
+                    <div className="flex-1" onClick={() => setFormData({...formData, role: 'service-manager'})}>
+                      <Label htmlFor="service-manager" className="cursor-pointer font-medium">
                         Service Center Manager
                       </Label>
-                      <p className="text-sm text-slate-600">
-                        Manage service operations, scheduling, and customer interactions
+                      <p className="text-sm text-slate-600 mt-1">
+                        Manage service operations
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-slate-50 cursor-pointer">
+                  
+                  <div className={`flex items-start space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${formData.role === 'manufacturing-engineer' ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
                     <RadioGroupItem value="manufacturing-engineer" id="manufacturing-engineer" className="mt-1" />
-                    <div>
-                      <Label htmlFor="manufacturing-engineer" className="cursor-pointer">
+                    <div className="flex-1" onClick={() => setFormData({...formData, role: 'manufacturing-engineer'})}>
+                      <Label htmlFor="manufacturing-engineer" className="cursor-pointer font-medium">
                         Manufacturing Engineer
                       </Label>
-                      <p className="text-sm text-slate-600">
-                        Access quality insights, RCA/CAPA data, and production analytics
+                      <p className="text-sm text-slate-600 mt-1">
+                        Access quality insights
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-slate-50 cursor-pointer">
+
+                  <div className={`flex items-start space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${formData.role === 'system-admin' ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-50'}`}>
                     <RadioGroupItem value="system-admin" id="system-admin" className="mt-1" />
-                    <div>
-                      <Label htmlFor="system-admin" className="cursor-pointer">
+                    <div className="flex-1" onClick={() => setFormData({...formData, role: 'system-admin'})}>
+                      <Label htmlFor="system-admin" className="cursor-pointer font-medium">
                         System Administrator
                       </Label>
-                      <p className="text-sm text-slate-600">
-                        Full access to security monitoring, UEBA, and system configurations
+                      <p className="text-sm text-slate-600 mt-1">
+                        System configurations
                       </p>
                     </div>
                   </div>
@@ -166,12 +221,12 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
 
           {/* Step 3: Location Assignment */}
           {step === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div>
                 <Label htmlFor="location">Primary Location</Label>
                 <Select
                   value={formData.location}
-                  onValueChange={(value) => setFormData({ ...formData, location: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, location: value })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select your location" />
@@ -190,7 +245,7 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                 <Label htmlFor="plant">Manufacturing Plant / Service Center</Label>
                 <Select
                   value={formData.plant}
-                  onValueChange={(value) => setFormData({ ...formData, plant: value })}
+                  onValueChange={(value: string) => setFormData({ ...formData, plant: value })}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Select your facility" />
@@ -209,7 +264,7 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                   <Check className="w-5 h-5 text-blue-600 mt-0.5" />
                   <div>
                     <p className="text-sm">
-                      By creating an account, you agree to the Terms of Service and Privacy Policy of the OEM Aftersales Intelligence Platform.
+                      By creating an account, you agree to the Terms of Service.
                     </p>
                   </div>
                 </div>
@@ -217,16 +272,24 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
             </div>
           )}
 
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-md text-sm mt-4">
+               <AlertCircle className="w-4 h-4" />
+               <span>{error}</span>
+            </div>
+          )}
+
           {/* Navigation Buttons */}
           <div className="flex justify-between mt-8">
             <div>
               {step > 1 ? (
-                <Button type="button" variant="outline" onClick={handleBack}>
+                <Button type="button" variant="outline" onClick={handleBack} disabled={loading}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
               ) : (
-                <Button type="button" variant="ghost" onClick={onSwitchToLogin}>
+                <Button type="button" variant="ghost" onClick={onSwitchToLogin} disabled={loading}>
                   Already have an account?
                 </Button>
               )}
@@ -238,9 +301,18 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               ) : (
-                <Button type="submit">
-                  Create Account
-                  <Check className="w-4 h-4 ml-2" />
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                    </>
+                  ) : (
+                    <>
+                        Create Account
+                        <Check className="w-4 h-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               )}
             </div>

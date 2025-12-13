@@ -4,19 +4,45 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (token: string) => void;
   onSwitchToRegister: () => void;
 }
 
 export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // Logic states
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await fetch('http://localhost:8080/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        onLogin(data.token); // Pass the token up to App.tsx
+      } else {
+        setError('Invalid email or password');
+      }
+    } catch (err) {
+      setError('Server error. Is the backend running?');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -30,7 +56,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
         />
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900/40 to-purple-900/40" />
         <div className="absolute bottom-12 left-12 text-white max-w-lg">
-          <h2 className="text-4xl mb-4">Intelligent Automotive Intelligence</h2>
+          <h2 className="text-4xl mb-4 font-bold">Intelligent Automotive Intelligence</h2>
           <p className="text-lg opacity-90">
             AI-powered orchestration for predictive maintenance, quality insights, and autonomous service management.
           </p>
@@ -41,7 +67,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <h1 className="text-3xl mb-2">OEM Aftersales Intelligence Portal</h1>
+            <h1 className="text-3xl font-bold mb-2">OEM Aftersales Intelligence Portal</h1>
             <p className="text-slate-600">Sign in to access your command center</p>
           </div>
 
@@ -75,7 +101,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Checkbox id="remember" />
-                <label htmlFor="remember" className="text-sm cursor-pointer">
+                <label htmlFor="remember" className="text-sm cursor-pointer text-slate-600">
                   Remember me
                 </label>
               </div>
@@ -84,8 +110,23 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               </button>
             </div>
 
-            <Button type="submit" className="w-full">
-              Sign In
+            {/* Error Message Display */}
+            {error && (
+                <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-md text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <span>{error}</span>
+                </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Signing in...
+                    </>
+                ) : (
+                    'Sign In'
+                )}
             </Button>
           </form>
 
@@ -139,7 +180,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               <button
                 type="button"
                 onClick={onSwitchToRegister}
-                className="text-blue-600 hover:underline"
+                className="text-blue-600 hover:underline font-medium"
               >
                 Register here
               </button>
