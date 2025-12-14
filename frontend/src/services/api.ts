@@ -4,7 +4,6 @@ const API_BASE_URL = 'http://localhost:8000/api';
 
 // --- 1. DEFINITIONS ---
 
-// For the Gauges
 export interface TelematicsData {
   vehicle_id: string;
   engine_temp_c: number;
@@ -14,7 +13,6 @@ export interface TelematicsData {
   active_dtc_codes: string[];
 }
 
-// For the AI Report
 export interface AnalysisResult {
   vehicle_id: string;
   risk_score: number;
@@ -26,7 +24,6 @@ export interface AnalysisResult {
   ueba_alerts: Array<{ message: string; agent: string }>;
 }
 
-// For the Fleet Table & Calendar
 export interface VehicleSummary {
   vin: string;
   model: string;
@@ -35,20 +32,28 @@ export interface VehicleSummary {
   predictedFailure: string;
   probability: number;
   action: string;
-  scheduled_date?: string; // ✅ NEW: Critical for the Calendar!
+  scheduled_date?: string;
 }
 
-// Interface for Booking Response
 export interface BookingResponse {
   status: string;
   booking_id: string;
   message: string;
 }
 
+export interface ActivityLog {
+  id: string;
+  time: string;
+  agent: string;
+  vehicle_id: string;
+  message: string;
+  type: 'info' | 'warning' | 'alert';
+}
+
 // --- 2. THE API BRIDGE ---
 
 export const api = {
-  // Get Live Telematics (Gauges)
+  // Get Live Telematics
   getTelematics: async (vehicleId: string): Promise<TelematicsData | null> => {
     try {
       const response = await axios.get(`${API_BASE_URL}/telematics/${vehicleId}`);
@@ -59,7 +64,7 @@ export const api = {
     }
   },
 
-  // Run AI Analysis (Button Click)
+  // Run AI Analysis
   runPrediction: async (vehicleId: string): Promise<AnalysisResult | null> => {
     try {
       const response = await axios.post(`${API_BASE_URL}/predictive/run`, {
@@ -72,18 +77,17 @@ export const api = {
     }
   },
 
-  // Get Fleet Overview (Table & Calendar)
+  // Get Fleet Overview
   getFleetStatus: async (): Promise<VehicleSummary[]> => {
     try {
       const response = await axios.get(`${API_BASE_URL}/fleet/status`);
       return response.data;
     } catch (e) {
-      console.warn("Fleet endpoint error (or not ready):", e);
       return [];
     }
   },
 
-  // Schedule Repair Function
+  // Schedule Repair
   scheduleRepair: async (vehicleId: string, date: string, notes: string): Promise<BookingResponse> => {
     try {
       const response = await axios.post(`${API_BASE_URL}/schedule/create`, {
@@ -95,6 +99,27 @@ export const api = {
     } catch (error) {
       console.error("Booking failed:", error);
       throw error;
+    }
+  },
+
+  // Get Activity Feed
+  getAgentActivity: async (): Promise<ActivityLog[]> => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/fleet/activity`);
+      return response.data;
+    } catch (e) {
+      return [];
+    }
+  },
+
+  // ✅ FIXED: System Health Check (Points to ROOT, bypassing /api)
+  getSystemStatus: async () => {
+    try {
+      // Direct call to root to check if server is alive
+      const response = await axios.get('http://localhost:8000/'); 
+      return response.data;
+    } catch (error) {
+      return null;
     }
   }
 };

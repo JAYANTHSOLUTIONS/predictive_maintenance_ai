@@ -17,25 +17,36 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "users") // The table name in MySQL
+@Table(name = "users")
 public class User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // --- New Fields from React Form ---
+    @Column(nullable = false)
+    private String fullName;
+
+    @Column(nullable = false)
+    private String location;
+
+    @Column(nullable = false)
+    private String plant;
+    // ----------------------------------
+
     @Column(unique = true, nullable = false)
     private String email;
 
     @Column(nullable = false)
-    private String password; // This will be encrypted (BCrypt)
+    private String password;
 
     @Enumerated(EnumType.STRING)
-    private Role role; // ADMIN or USER
+    private Role role;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override
@@ -43,7 +54,6 @@ public class User implements UserDetails {
         return email;
     }
 
-    // Standard boilerplate for account status
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return true; }
     @Override public boolean isCredentialsNonExpired() { return true; }

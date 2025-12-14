@@ -1,15 +1,13 @@
-import { useState, useEffect } from 'react';
-import { X, Play, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Play, AlertTriangle, CheckCircle, Activity, Thermometer, Droplets, Gauge, Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import ReactMarkdown from 'react-markdown'; 
 
-// ✅ IMPORT API & INTERFACES
 import { api, TelematicsData, AnalysisResult } from '../../services/api';
-
-// ✅ NEW: IMPORT THE BOOKING MODAL
 import { ServiceBookingModal } from './ServiceBookingModal';
 
 interface VehicleDetailPanelProps {
@@ -18,23 +16,41 @@ interface VehicleDetailPanelProps {
 }
 
 export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelProps) {
-  // 1. STATE MANAGEMENT
+  // --- 1. STATE ---
   const [telematics, setTelematics] = useState<TelematicsData | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [chartData, setChartData] = useState<any[]>([]); 
-  
-  // ✅ NEW: Modal State
   const [showBooking, setShowBooking] = useState(false);
+  
+  // Ref to prevent infinite loops during auto-trigger
+  const hasAutoRun = useRef(false);
 
-  // 2. LIVE DATA FETCHING & GRAPH UPDATE
+  // --- 2. AI RUNNER ---
+  const handleRunAI = useCallback(async (auto = false) => {
+    if (loading) return; 
+    setLoading(true);
+    try {
+        const result = await api.runPrediction(vehicleId);
+        setAnalysis(result);
+        if (auto) hasAutoRun.current = true;
+    } catch (e) {
+        console.error("AI Error", e);
+    }
+    setLoading(false);
+  }, [vehicleId, loading]);
+
+  // --- 3. DATA FETCHING LOOP ---
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       const data = await api.getTelematics(vehicleId);
-      if (data) {
+      
+      if (data && isMounted) {
         setTelematics(data);
         
-        // Add new point to graph
+        // Update Chart History
         setChartData(prev => {
           const newPoint = {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -42,189 +58,285 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
             oilPressure: data.oil_pressure_psi,
             rpm: data.rpm
           };
-          // Keep only last 10 points to keep graph clean
-          const newHistory = [...prev, newPoint];
-          return newHistory.slice(-10);
+          // Keep last 15 points for a smooth graph
+          return [...prev, newPoint].slice(-15);
         });
+
+        // ⚡ AUTO-TRIGGER LOGIC
+        // If critical AND no report yet AND not loading AND haven't run yet...
+        const isCritical = data.engine_temp_c > 98 || data.oil_pressure_psi < 20;
+
+        if (isCritical && !analysis && !loading && !hasAutoRun.current) {
+            console.log("⚠️ Critical Threshold Met! Auto-Running AI...");
+            hasAutoRun.current = true; // Lock immediately
+            handleRunAI(true);
+        }
       }
     };
 
-    fetchData(); // Initial fetch
-    const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
-    return () => clearInterval(interval);
-  }, [vehicleId]);
+    fetchData(); 
+    const interval = setInterval(fetchData, 2000); 
+    
+    return () => {
+        isMounted = false;
+        clearInterval(interval);
+    };
+  }, [vehicleId, analysis, loading, handleRunAI]);
 
-  // 3. AI DIAGNOSIS ACTION (Refreshes Analysis)
-  const handleRunAI = async () => {
-    setLoading(true);
-    try {
-        const result = await api.runPrediction(vehicleId);
-        setAnalysis(result);
-    } catch (e) {
-        console.error("AI Error", e);
-    }
-    setLoading(false);
+  // --- 4. EXPORT FUNCTION (UPDATED) ---
+  const handleExport = () => {
+    if (!analysis) return;
+
+    const fileContent = `
+VEHICLE DIAGNOSTICS REPORT
+==========================
+Vehicle ID: ${vehicleId}
+Date: ${new Date().toLocaleString()}
+Risk Level: ${analysis.risk_level} (${analysis.risk_score}%)
+
+------------------------------------------------
+AI DIAGNOSIS:
+${analysis.diagnosis}
+
+------------------------------------------------
+MANUFACTURING INSIGHTS:
+${analysis.manufacturing_insights || 'No engineering feedback provided.'}
+    `;
+
+    // Create file and download
+    const blob = new Blob([fileContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    // Filename: VehicleID_Date.txt
+    link.download = `${vehicleId}_Report_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Helper: Status Colors
+  const getRiskColor = (level?: string) => {
+      if (level === 'CRITICAL') return 'bg-red-50 border-red-200 text-red-900';
+      if (level === 'HIGH') return 'bg-orange-50 border-orange-200 text-orange-900';
+      return 'bg-green-50 border-green-200 text-green-900';
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-2/3 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200">
-      <div className="p-6">
-        
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold mb-1">Vehicle Detail</h2>
-            <div className="flex items-center gap-2">
-                <span className="text-slate-600 font-mono bg-slate-100 px-2 py-1 rounded">{vehicleId}</span>
-                <Badge variant={telematics ? "default" : "secondary"}>
-                    {telematics ? "🟢 Live IoT Connected" : "⚫ Offline"}
-                </Badge>
-            </div>
+    <div className="fixed inset-y-0 right-0 w-full md:w-3/4 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200 flex flex-col">
+      
+      {/* --- HEADER --- */}
+      <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 backdrop-blur-sm z-10">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">{vehicleId}</h2>
+          <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-slate-500 font-medium">HeavyHaul X5</span>
+              <Separator orientation="vertical" className="h-4" />
+              <Badge variant={telematics ? "default" : "secondary"} className={telematics ? "bg-green-600" : ""}>
+                  {telematics ? "Online" : "Offline"}
+              </Badge>
+              {hasAutoRun.current && (
+                  <Badge variant="destructive" className="animate-pulse">
+                      ⚡ AI Auto-Intervention
+                  </Badge>
+              )}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="w-5 h-5" />
-          </Button>
         </div>
 
-        <div className="space-y-6">
-          
-          {/* VEHICLE INFO */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehicle Information</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-slate-500">Model</p>
-                <p className="font-medium">HeavyHaul X5</p>
-              </div>
-              <div>
-                <p className="text-sm text-slate-500">Last Service</p>
-                <p className="font-medium">15 Nov 2025</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex items-center gap-2">
+            {/* --- EXPORT BUTTON --- */}
+            {/* Disabled if no analysis. Visible on all screens. */}
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExport}
+                disabled={!analysis} 
+                className="flex gap-2"
+                title={!analysis ? "Run Diagnosis to Enable Export" : "Download Report"}
+            >
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export Report</span>
+            </Button>
 
-          {/* AI ACTION BUTTON */}
-          {!analysis && (
-              <Card className="bg-blue-50 border-blue-100">
-                  <CardContent className="pt-6">
-                      <div className="text-center">
-                          <h3 className="text-lg font-semibold text-blue-900 mb-2">Ready for Diagnostics</h3>
-                          <p className="text-blue-700 mb-4 text-sm">Analyze real-time sensor data to detect anomalies.</p>
-                          <Button onClick={handleRunAI} disabled={loading} className="w-full">
-                            {loading ? "Running Neural Network..." : "Run AI Diagnostics"} 
-                            {!loading && <Play className="w-4 h-4 ml-2" />}
-                          </Button>
-                      </div>
-                  </CardContent>
-              </Card>
-          )}
-
-          {/* AI RESULTS (Only show if analysis exists) */}
-          {analysis && (
-            <Card className={analysis.risk_level === 'CRITICAL' ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>AI Diagnostics Report</CardTitle>
-                  <Badge variant={analysis.risk_level === 'CRITICAL' ? "destructive" : "default"}>
-                    {analysis.risk_level} - {analysis.risk_score}% Risk
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h3 className="font-semibold mb-1">Diagnosis Agent Analysis</h3>
-                  <p className="text-sm text-slate-700 whitespace-pre-line">
-                    {analysis.diagnosis}
-                  </p>
-                </div>
-                
-                {/* UEBA Security Alert */}
-                {analysis.ueba_alerts.length > 0 && (
-                    <div className="bg-red-900/10 border border-red-500/50 p-3 rounded text-red-800 text-sm">
-                        <div className="font-bold flex items-center gap-2">
-                             <AlertTriangle className="w-4 h-4"/> Security Alert (UEBA)
-                        </div>
-                        {analysis.ueba_alerts[0].message}
-                    </div>
-                )}
-                
-                {/* Manufacturing Insights */}
-                {analysis.manufacturing_insights && (
-                    <>
-                        <Separator className="bg-slate-300"/>
-                        <div>
-                            <h3 className="font-semibold mb-1">🏭 Factory Engineering Feedback</h3>
-                            <p className="text-sm text-slate-700">{analysis.manufacturing_insights}</p>
-                        </div>
-                    </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* LIVE SENSOR GRAPHS */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Real-Time Telematics (Live Stream)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="time" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="engineTemp" stroke="#ef4444" name="Temp (°C)" strokeWidth={2} dot={false} />
-                      <Line type="monotone" dataKey="oilPressure" stroke="#f59e0b" name="Oil (PSI)" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-              </div>
-              
-              {/* LIVE METRIC CARDS */}
-              <div className="mt-4 grid grid-cols-3 gap-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-                  <p className="text-xs text-slate-600">Engine Temp</p>
-                  <p className="text-2xl font-bold text-red-600">{telematics?.engine_temp_c ?? '--'}°C</p>
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
-                  <p className="text-xs text-slate-600">Oil Pressure</p>
-                  <p className="text-2xl font-bold text-amber-600">{telematics?.oil_pressure_psi ?? '--'} PSI</p>
-                </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                  <p className="text-xs text-slate-600">RPM</p>
-                  <p className="text-2xl font-bold text-blue-600">{telematics?.rpm ?? '--'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ACTION BUTTONS (Updated with Logic) */}
-          {analysis && (
-              <div className="flex space-x-3 pb-6">
-                <Button 
-                    className={`flex-1 ${analysis.booking_id ? "bg-slate-600 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-                    onClick={() => !analysis.booking_id && setShowBooking(true)}
-                    disabled={!!analysis.booking_id}
-                >
-                    <CheckCircle className="w-4 h-4 mr-2"/> 
-                    {analysis.booking_id ? `Service Confirmed (ID: ${analysis.booking_id})` : "Book Service"}
-                </Button>
-                <Button variant="outline" className="flex-1">Contact Owner</Button>
-              </div>
-          )}
+            <Button variant="ghost" size="icon" onClick={onClose} className="hover:bg-slate-200 rounded-full">
+                <X className="w-6 h-6 text-slate-500" />
+            </Button>
         </div>
       </div>
 
-      {/* ✅ BOOKING MODAL (Conditionally Rendered) */}
+      <div className="p-6 space-y-6 flex-1">
+        
+        {/* --- 1. LIVE SENSOR GRID --- */}
+        <div className="grid grid-cols-3 gap-4">
+            <Card className={`border-l-4 ${telematics?.engine_temp_c && telematics.engine_temp_c > 98 ? 'border-l-red-500 bg-red-50/50' : 'border-l-slate-300'}`}>
+                <CardContent className="p-4 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Thermometer className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Engine Temp</span>
+                    </div>
+                    <span className={`text-2xl font-bold ${telematics?.engine_temp_c && telematics.engine_temp_c > 98 ? 'text-red-600' : 'text-slate-900'}`}>
+                        {telematics?.engine_temp_c ?? '--'}°C
+                    </span>
+                </CardContent>
+            </Card>
+
+            <Card className={`border-l-4 ${telematics?.oil_pressure_psi && telematics.oil_pressure_psi < 20 ? 'border-l-amber-500 bg-amber-50/50' : 'border-l-slate-300'}`}>
+                <CardContent className="p-4 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Droplets className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Oil Pressure</span>
+                    </div>
+                    <span className={`text-2xl font-bold ${telematics?.oil_pressure_psi && telematics.oil_pressure_psi < 20 ? 'text-amber-600' : 'text-slate-900'}`}>
+                        {telematics?.oil_pressure_psi ?? '--'} PSI
+                    </span>
+                </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-blue-500">
+                <CardContent className="p-4 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Gauge className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">RPM</span>
+                    </div>
+                    <span className="text-2xl font-bold text-blue-900">
+                        {telematics?.rpm ?? '--'}
+                    </span>
+                </CardContent>
+            </Card>
+        </div>
+
+        {/* --- 2. MANUAL TRIGGER (Visible if no analysis yet) --- */}
+        {!analysis && (
+            <Card className="bg-slate-50 border-dashed border-2 border-slate-300 shadow-none">
+                <CardContent className="py-8 flex flex-col items-center text-center">
+                    <Activity className="w-12 h-12 text-blue-500/50 animate-pulse mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-700">System Monitoring Active</h3>
+                    <p className="text-slate-500 text-sm max-w-sm mb-6">
+                        AI monitoring is running in the background. If critical thresholds are breached, a diagnostic report will generate automatically.
+                    </p>
+                    <Button onClick={() => handleRunAI(false)} disabled={loading} className="w-full max-w-xs">
+                        {loading ? "Analyzing..." : "Force Manual Diagnosis"} 
+                        {!loading && <Play className="w-4 h-4 ml-2" />}
+                    </Button>
+                </CardContent>
+            </Card>
+        )}
+
+        {/* --- 3. AI REPORT (Markdown Enabled) --- */}
+        {analysis && (
+          <Card className={`border shadow-sm overflow-hidden ${getRiskColor(analysis.risk_level)}`}>
+            <CardHeader className="border-b border-black/5 bg-black/5 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="bg-white p-1.5 rounded-full shadow-sm">
+                        <Activity className="w-5 h-5 text-current" />
+                    </div>
+                    <CardTitle className="text-lg">AI Diagnostics Report</CardTitle>
+                </div>
+                <Badge variant={analysis.risk_level === 'CRITICAL' ? "destructive" : "outline"} className="text-sm px-3 py-1">
+                  {analysis.risk_level} • {analysis.risk_score}% Risk
+                </Badge>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="space-y-6 pt-6 bg-white/50">
+              
+              {/* Diagnosis Section */}
+              <div>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">Diagnosis Agent Analysis</h4>
+                <div className="text-sm text-slate-800 leading-relaxed">
+                  <ReactMarkdown 
+                      components={{
+                          h3: ({children}) => <h3 className="text-base font-bold text-blue-900 mt-5 mb-2 flex items-center gap-2">{children}</h3>,
+                          li: ({children}) => <li className="ml-4 list-disc marker:text-slate-400 mb-1 pl-1">{children}</li>,
+                          strong: ({children}) => <span className="font-semibold text-slate-900 bg-slate-100 px-1 rounded">{children}</span>,
+                          p: ({children}) => <p className="mb-3">{children}</p>
+                      }}
+                  >
+                      {analysis.diagnosis}
+                  </ReactMarkdown>
+                </div>
+              </div>
+              
+              {/* Security Alert */}
+              {analysis.ueba_alerts.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 p-4 rounded-md flex gap-3 items-start">
+                      <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                          <h5 className="font-bold text-red-900 text-sm">Security Alert (UEBA)</h5>
+                          <p className="text-red-700 text-sm mt-1">{analysis.ueba_alerts[0].message}</p>
+                      </div>
+                  </div>
+              )}
+              
+              {/* Manufacturing Section */}
+              {analysis.manufacturing_insights && (
+                  <>
+                      <Separator />
+                      <div>
+                          <h4 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3">🏭 Factory Engineering Feedback</h4>
+                          <div className="text-sm text-slate-700 leading-relaxed">
+                              <ReactMarkdown
+                                  components={{
+                                      h3: ({children}) => <h3 className="text-base font-bold text-indigo-900 mt-5 mb-2">{children}</h3>,
+                                      li: ({children}) => <li className="ml-4 list-disc marker:text-indigo-400 mb-1 pl-1">{children}</li>,
+                                      strong: ({children}) => <span className="font-semibold text-indigo-900 bg-indigo-50 px-1 rounded">{children}</span>,
+                                      p: ({children}) => <p className="mb-3">{children}</p>
+                                  }}
+                              >
+                                  {analysis.manufacturing_insights}
+                              </ReactMarkdown>
+                          </div>
+                      </div>
+                  </>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* --- 4. REAL-TIME CHART --- */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Live Telemetry Stream</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px] w-full mt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="time" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
+                    <YAxis tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
+                        itemStyle={{fontSize: '12px', fontWeight: 'bold'}}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="engineTemp" stroke="#ef4444" name="Temp (°C)" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                    <Line type="monotone" dataKey="oilPressure" stroke="#f59e0b" name="Oil (PSI)" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                  </LineChart>
+                </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* --- 5. ACTION BUTTONS --- */}
+        {analysis && (
+            <div className="sticky bottom-0 bg-white pt-4 pb-0 border-t mt-4 flex gap-3">
+              <Button 
+                  className={`flex-1 h-12 text-base shadow-lg ${analysis.booking_id ? "bg-slate-100 text-slate-500 hover:bg-slate-100 cursor-not-allowed border border-slate-200" : "bg-green-600 hover:bg-green-700 text-white"}`}
+                  onClick={() => !analysis.booking_id && setShowBooking(true)}
+                  disabled={!!analysis.booking_id}
+              >
+                  {analysis.booking_id ? <CheckCircle className="w-5 h-5 mr-2 text-green-600"/> : <CheckCircle className="w-5 h-5 mr-2"/>}
+                  {analysis.booking_id ? `Service Confirmed (${analysis.booking_id})` : "Approve & Book Service"}
+              </Button>
+            </div>
+        )}
+      </div>
+
+      {/* --- MODAL --- */}
       {showBooking && (
         <ServiceBookingModal 
             vehicleId={vehicleId} 
             onClose={() => setShowBooking(false)} 
-            onSuccess={() => handleRunAI()} // Re-run fetch to see the new booking ID
+            onSuccess={() => handleRunAI(false)} 
         />
       )}
     </div>

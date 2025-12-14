@@ -1,14 +1,15 @@
 package com.resumeos.auth_service.dto;
 
-
+import com.resumeos.auth_service.entity.Role;
+import lombok.Builder;
 import lombok.Data;
 
 @Data
-public class RegisterRequest {
+@Builder
+public class UserResponse {
     private String fullName;
     private String email;
-    private String password;
-    private String role;
+    private Role role;
     private String location;
     private String plant;
 }

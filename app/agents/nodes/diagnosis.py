@@ -1,8 +1,5 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.state import AgentState
-# Import the LLM we configured in tests/test_key.py
-# (We assume you moved the LLM initialization to app/config/settings.py or similar, 
-# but for now, we'll init it here for simplicity)
 import os
 from dotenv import load_dotenv
 
@@ -41,6 +38,7 @@ def diagnosis_node(state: AgentState) -> AgentState:
     issues = "\n".join(state["detected_issues"])
     telematics = state["telematics_data"]
     
+    # ✅ UPDATED PROMPT: Forces structured Markdown output
     prompt = f"""
     You are a Senior Fleet Mechanic AI. 
     Analyze this truck's status:
@@ -54,26 +52,37 @@ def diagnosis_node(state: AgentState) -> AgentState:
     - Engine Temp: {telematics.get('engine_temp_c')} C
     - Active Codes: {telematics.get('dtc_readable')}
     
-    TASK:
-    1. Explain technically what is failing.
-    2. Recommend the specific repair needed.
-    3. Set priority (Low/Medium/High/Critical).
+    IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers and bullets.
     
-    Output format:
-    Report: [Your explanation]
-    Action: [Specific repair]
-    Priority: [Level]
+    ### 🚨 Critical Faults
+    * **[Code/Issue]**: [Short description]
+    
+    ### 📉 Root Cause Analysis
+    * **Primary Cause:** [One sentence explanation]
+    * **Secondary Factors:** [One sentence explanation]
+    
+    ### 🛠️ Immediate Action Plan
+    1. [First Step]
+    2. [Second Step]
+    3. [Third Step]
+    
+    ### ⚠️ Risk Assessment
+    * **Severity:** [Critical/High/Medium]
+    * **Consequence:** [What happens if ignored?]
     """
 
     # 3. Call the LLM
-    response = llm.invoke([HumanMessage(content=prompt)])
-    content = response.content
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content
+    except Exception as e:
+        print(f"❌ LLM Error: {e}")
+        content = "Error generating diagnosis. Please check system logs."
 
     # 4. Save to State
-    # (In a real app, we'd use Structured Output/JSON mode to parse this reliably)
     state["diagnosis_report"] = content
     
-    # Simple keyword extraction for the sake of the demo
+    # Simple keyword extraction for priority setting
     if "Critical" in content:
         state["priority_level"] = "Critical"
     elif "High" in content:
