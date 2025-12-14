@@ -5,6 +5,7 @@ import { Label } from '../ui/label';
 import { Checkbox } from '../ui/checkbox';
 import { Separator } from '../ui/separator';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google'; // Import Google SDK
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -19,6 +20,7 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // 1. Standard Email/Password Login
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -34,12 +36,40 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
       const data = await response.json();
 
       if (response.ok) {
-        onLogin(data.token); // Pass the token up to App.tsx
+        onLogin(data.token); 
       } else {
         setError('Invalid email or password');
       }
     } catch (err) {
       setError('Server error. Is the backend running?');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Google Login Handler
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      // Send the Google Token to Spring Boot
+      const res = await fetch('http://localhost:8080/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Receive YOUR App's JWT and Log In
+        onLogin(data.token);
+      } else {
+        setError("Google authentication failed on server");
+      }
+    } catch (err) {
+      setError("Network Error connecting to Google Auth endpoint");
     } finally {
       setLoading(false);
     }
@@ -140,37 +170,16 @@ export function Login({ onLogin, onSwitchToRegister }: LoginProps) {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button variant="outline" type="button">
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M23.766 12.276c0-.815-.07-1.601-.205-2.357H12.24v4.456h6.486a5.54 5.54 0 0 1-2.405 3.638v2.966h3.893c2.278-2.095 3.552-5.18 3.552-8.703z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12.24 24c3.254 0 5.982-1.076 7.977-2.92l-3.893-2.967c-1.08.724-2.463 1.15-4.084 1.15-3.142 0-5.805-2.122-6.754-4.975H1.38v3.063A11.996 11.996 0 0 0 12.24 24z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.486 14.288a7.203 7.203 0 0 1 0-4.576V6.649H1.38a11.996 11.996 0 0 0 0 10.702l4.106-3.063z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12.24 4.737c1.773 0 3.362.61 4.613 1.804l3.458-3.457C18.217 1.19 15.49 0 12.24 0A11.996 11.996 0 0 0 1.38 6.649l4.106 3.063c.95-2.853 3.612-4.975 6.754-4.975z"
-                  />
-                </svg>
-                Google
-              </Button>
-              <Button variant="outline" type="button">
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M23.5 12.3c0-6.4-5.2-11.6-11.6-11.6S.3 5.9.3 12.3c0 5.8 4.2 10.5 9.7 11.4V15.8H7.4v-3.5H10V9.8c0-2.6 1.5-4 3.9-4 1.1 0 2.3.2 2.3.2v2.5h-1.3c-1.3 0-1.7.8-1.7 1.6v1.9h2.8l-.4 3.5h-2.4v7.9c5.5-.9 9.7-5.6 9.7-11.4z"
-                  />
-                </svg>
-                Microsoft
-              </Button>
+            {/* Google Login Button */}
+            <div className="mt-6 flex justify-center w-full">
+               <GoogleLogin
+                 onSuccess={handleGoogleSuccess}
+                 onError={() => setError('Google Login Failed')}
+                 theme="outline"
+                 size="large"
+                 width="100%" // Attempts to fill width, might be capped by Google's CSS
+                 useOneTap // Helps with auto-popup if supported
+               />
             </div>
           </div>
 
