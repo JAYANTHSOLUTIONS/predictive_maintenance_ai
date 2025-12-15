@@ -9,17 +9,16 @@
         "owner": "Logistics Corp"
       },
       "telematics": {
-        "engine_temp_c": 117,
+        "engine_temp_c": 62,
         "oil_pressure_psi": 0,
         "active_dtc_codes": [
-          "P0217",
           "P0524"
         ],
-        "rpm": 4389,
+        "rpm": 748,
         "vibration_level": "HIGH",
-        "vibration_hz": 73.52,
-        "battery_voltage": 24.7,
-        "fuel_level_percent": 55,
+        "vibration_hz": 75.33,
+        "battery_voltage": 24.3,
+        "fuel_level_percent": 49,
         "gps_location": {
           "lat": 28.7041,
           "lon": 77.1025

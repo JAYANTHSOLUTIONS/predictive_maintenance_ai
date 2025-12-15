@@ -1,4 +1,4 @@
-import { DemandForecast } from './DemandForecast';
+import React from 'react';
 import { SchedulerCalendar } from './SchedulerCalendar';
 
 export function Scheduling() {
@@ -10,10 +10,7 @@ export function Scheduling() {
         <p className="text-slate-600">AI-powered scheduling optimization and capacity planning</p>
       </div>
 
-      {/* Demand Forecast Chart */}
-      <DemandForecast />
-
-      {/* Scheduler Calendar */}
+      {/* The Calendar Component */}
       <SchedulerCalendar />
     </div>
   );

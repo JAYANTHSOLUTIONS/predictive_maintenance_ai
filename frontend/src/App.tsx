@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'; // <--- Import Co
 // --- Components ---
 import { Login } from './components/auth/Login';
 import { Register } from './components/auth/Register';
-import { DashboardLayout } from './components/layout/DashboardLayout';
+import { DashboardLayout } from './components/layout2/DashboardLayout';
 
 // --- Pages ---
 import { MasterDashboard } from './components/dashboard/MasterDashboard';

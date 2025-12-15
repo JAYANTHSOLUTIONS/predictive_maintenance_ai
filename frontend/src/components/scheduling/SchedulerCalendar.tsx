@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'; // Fixed Import
-import { Badge } from '../ui/badge'; // Fixed Import
-import { Button } from '../ui/button'; // Fixed Import
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'; 
+import { Badge } from '../ui/badge'; 
+import { Button } from '../ui/button'; 
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, AlertCircle } from 'lucide-react';
 
-// ✅ Import API to get Real Data
-import { api } from '../../services/api';
+// ✅ Import your API Bridge
+import { api } from '../../services/api'; 
 
 interface ServiceBay {
   id: string;
@@ -18,6 +18,7 @@ interface Appointment {
   time: string;
   duration: number;
   vin: string;
+  model: string;
   service: string;
   status: 'auto-scheduled' | 'manual' | 'conflict';
   customer: string;
@@ -25,72 +26,156 @@ interface Appointment {
 
 const timeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
+// 🖼️ HELPER: Get Image URL based on Car Model (Using your provided links)
+const getVehicleImage = (model: string) => {
+  const m = model || ""; 
+  // Mahindra
+  if (m.includes('Thar')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40087/thar-exterior-right-front-three-quarter-11.jpeg';
+  if (m.includes('Scorpio N')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40432/scorpio-n-exterior-right-front-three-quarter-75.jpeg';
+  if (m.includes('Scorpio')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/128413/scorpio-classic-exterior-right-front-three-quarter-46.jpeg';
+  if (m.includes('XUV 3XO') || m.includes('3XO')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/156405/xuv-3xo-exterior-right-front-three-quarter-33.jpeg';
+  if (m.includes('XUV700')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/42355/xuv700-exterior-right-front-three-quarter-3.jpeg'; 
+  
+  /// Honda
+  if (m.includes('City')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/134287/city-exterior-right-front-three-quarter-77.jpeg'; 
+  if (m.includes('Elevate')) return 'https://i.pinimg.com/1200x/a6/42/c4/a642c4eaf195c46ef3adbc1e13dac0e4.jpg'; 
+
+  // Other Common Fleet Cars (New Additions)
+  if (m.includes('Fortuner')) return 'https://i.pinimg.com/1200x/b8/a3/19/b8a319905659c8f0fae009dcc47906c0.jpg';
+  if (m.includes('Creta')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/141115/creta-exterior-right-front-three-quarter.jpeg';
+  if (m.includes('Nexon')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/141867/nexon-exterior-right-front-three-quarter-71.jpeg';
+  if (m.includes('Innova')) return 'https://i.pinimg.com/1200x/fe/e6/ee/fee6eea7b191112a744e2bf23a277871.jpg';
+
+  // Fallback
+  return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/130591/fronx-exterior-right-front-three-quarter-109.jpeg';
+};
+
 export function SchedulerCalendar() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+  const [currentDateObj, setCurrentDateObj] = useState(new Date());
   const [bays, setBays] = useState<ServiceBay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [latestBookingDate, setLatestBookingDate] = useState<Date | null>(null);
 
-  // ✅ FETCH REAL DATA & MERGE WITH MOCK DATA
-  useEffect(() => {
-    const loadSchedule = async () => {
-      setLoading(true);
-      
-      // 1. Get Real Bookings from Python
-      const fleet = await api.getFleetStatus();
-      const realBookings = fleet.filter(v => v.action === 'Service Booked');
+  const formattedDate = currentDateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const logicDate = currentDateObj.toISOString().split('T')[0];
 
-      // 2. Define Mock Base Schedule (The "Busy" Shop)
-      const baseSchedule: ServiceBay[] = [
+  // 🕒 HELPER: Determine if Service is Finished or Pending
+  const getServiceStatus = (apptTime: string) => {
+    const now = new Date();
+    
+    // Create a date object for this appointment's specific slot
+    const apptDateTime = new Date(currentDateObj);
+    const [hours, minutes] = apptTime.split(':').map(Number);
+    apptDateTime.setHours(hours, minutes, 0, 0);
+
+    // Compare with NOW
+    if (apptDateTime < now) {
+        // ✅ COMPLETED = GREEN
+        return { color: 'bg-green-500', label: 'Completed', glow: '' };
+    } else {
+        // ✅ PENDING = RED
+        return { color: 'bg-red-500', label: 'Pending', glow: 'animate-pulse' };
+    }
+  };
+
+  // 🎲 GENERATOR: Create Random Schedule for Any Date
+  const generateMockSchedule = (dateStr: string): ServiceBay[] => {
+    const day = parseInt(dateStr.split('-')[2]) || 1;
+    const isEvenDay = day % 2 === 0;
+
+    return [
         {
-          id: 'bay-1', name: 'Bay 1 (Heavy)',
-          appointments: [
-             // We will inject real bookings here
-          ],
+          id: 'bay-1', name: 'Bay 1 (Heavy / Critical)',
+          appointments: isEvenDay ? [
+            { id: 'm-101', time: '14:00', duration: 3, vin: 'KA-01-AB-999', model: 'Toyota Fortuner', service: 'Suspension Overhaul', status: 'manual', customer: 'VIP Transport' }
+          ] : [], 
         },
         {
           id: 'bay-2', name: 'Bay 2 (Electrical)',
-          appointments: [
-            { id: '4', time: '09:00', duration: 1, vin: 'TN07EF3456', service: 'Brake Pad Replacement', status: 'auto-scheduled', customer: 'Lakshmi Iyer' },
-            { id: '5', time: '11:00', duration: 2, vin: 'MH01GH7890', service: 'Coolant System Check', status: 'conflict', customer: 'Vikram Singh' },
+          appointments: isEvenDay ? [
+            { id: 'm-201', time: '09:00', duration: 2, vin: 'MH-02-CD-123', model: 'Mahindra XUV 3XO', service: 'Battery Voltage Check', status: 'manual', customer: 'Urban Fleet' },
+            { id: 'm-202', time: '12:00', duration: 2, vin: 'DL-04-EF-456', model: 'Tata Nexon EV', service: 'Software Update', status: 'manual', customer: 'Eco Cabs' },
+          ] : [
+            { id: 'm-203', time: '10:00', duration: 3, vin: 'WB-05-GH-789', model: 'Honda City Hybrid', service: 'Hybrid System Check', status: 'conflict', customer: 'Green Taxi' }
           ],
         },
         {
           id: 'bay-3', name: 'Bay 3 (General)',
-          appointments: [
-            { id: '7', time: '10:00', duration: 3, vin: 'GJ06KL6789', service: 'Full Service', status: 'auto-scheduled', customer: 'Deepak Shah' },
+          appointments: isEvenDay ? [
+            { id: 'm-301', time: '10:00', duration: 4, vin: 'GJ-06-IJ-101', model: 'Mahindra Thar', service: 'Oil Pressure Sensor', status: 'manual', customer: 'Adventure Tours' },
+          ] : [
+            { id: 'm-302', time: '09:00', duration: 2, vin: 'TN-07-KL-202', model: 'Hyundai Creta', service: 'Brake Pad Replacement', status: 'manual', customer: 'Rental Co.' },
+            { id: 'm-303', time: '14:00', duration: 2, vin: 'UP-08-MN-303', model: 'Mahindra Scorpio N', service: 'Routine Service', status: 'manual', customer: 'Logistics Ltd' },
           ],
         },
         {
           id: 'bay-4', name: 'Bay 4 (Express)',
-          appointments: [
-            { id: '9', time: '09:00', duration: 1.5, vin: 'WB08OP4567', service: 'AC Service', status: 'manual', customer: 'Sourav Das' },
+          appointments: isEvenDay ? [
+            { id: 'm-401', time: '09:00', duration: 1, vin: 'HR-09-OP-404', model: 'Honda City', service: 'Wiper Fluid Check', status: 'manual', customer: 'Corporate Lease' },
+            { id: 'm-402', time: '11:00', duration: 1.5, vin: 'PB-10-QR-505', model: 'Honda Elevate', service: 'Alignment Check', status: 'manual', customer: 'Corporate Lease' },
+          ] : [
+            { id: 'm-403', time: '13:00', duration: 1, vin: 'RJ-11-ST-606', model: 'Toyota Innova', service: 'Quick Wash & Check', status: 'manual', customer: 'Hotel Fleet' }
           ],
         },
       ];
+  };
 
-      // 3. Inject Real Vehicles into Bay 1
-      realBookings.forEach((vehicle, index) => {
-          baseSchedule[0].appointments.push({
-              id: `real-${vehicle.vin}`,
-              time: index === 0 ? '09:00' : '14:00', // Slot logic
-              duration: 2,
-              vin: vehicle.vin,
-              service: vehicle.predictedFailure || 'General Repair',
-              status: 'auto-scheduled',
-              customer: 'Priority Client'
-          });
+  const loadSchedule = async () => {
+    setLoading(true);
+    
+    try {
+      const fleet = await api.getFleetStatus();
+      const realBookings = fleet.filter(v => v.action === 'Service Booked' && v.scheduled_date);
+
+      if (realBookings.length > 0) {
+        const lastBooking = realBookings[realBookings.length - 1];
+        if (lastBooking.scheduled_date) {
+            const dateString = lastBooking.scheduled_date.split(' ')[0];
+            setLatestBookingDate(new Date(`${dateString}T12:00:00`));
+        }
+      }
+
+      const baseSchedule = generateMockSchedule(logicDate);
+
+      // Inject Real Bookings into Bay 1 (Heavy / Critical)
+      realBookings.forEach((vehicle) => {
+          if (!vehicle.scheduled_date) return;
+          const [vDate, vTimeFull] = vehicle.scheduled_date.split(' '); 
+          
+          if (vDate === logicDate) {
+              const timeSlot = vTimeFull.substring(0, 5); 
+              baseSchedule[0].appointments.push({
+                  id: `real-${vehicle.vin}`,
+                  time: timeSlot, 
+                  duration: 2, 
+                  vin: vehicle.vin,
+                  // Use the Model returned by the API (which is populated from your JSON)
+                  model: vehicle.model || 'Scorpio Classic', 
+                  service: vehicle.predictedFailure || 'Critical Repair',
+                  status: 'auto-scheduled',
+                  customer: 'AI Priority Booking'
+              });
+          }
       });
 
       setBays(baseSchedule);
+    } catch (e) {
+      console.error("Failed to sync schedule", e);
+    } finally {
       setLoading(false);
-    };
-
-    loadSchedule();
-  }, []);
-
-  const getAppointmentAtTime = (bay: ServiceBay, timeSlot: string) => {
-    return bay.appointments.find((apt) => apt.time === timeSlot);
+    }
   };
+
+  useEffect(() => { loadSchedule(); }, [currentDateObj]); 
+
+  const changeDate = (days: number) => {
+    const newDate = new Date(currentDateObj);
+    newDate.setDate(newDate.getDate() + days);
+    setCurrentDateObj(newDate);
+  };
+
+  const jumpToDate = (targetDate: Date) => { setCurrentDateObj(targetDate); };
+  const getAppointmentAtTime = (bay: ServiceBay, timeSlot: string) => bay.appointments.find((apt) => apt.time === timeSlot);
 
   return (
     <Card>
@@ -100,76 +185,95 @@ export function SchedulerCalendar() {
             <CardTitle>Service Bay Scheduler</CardTitle>
             <p className="text-sm text-slate-600 mt-1">Mumbai Central Service Center</p>
           </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="icon"><ChevronLeft className="w-4 h-4" /></Button>
-              <div className="flex items-center space-x-2 px-3 min-w-[160px] justify-center font-mono">
-                <CalendarIcon className="w-4 h-4 text-slate-600" />
-                <span>{selectedDate}</span>
-              </div>
-              <Button variant="outline" size="icon"><ChevronRight className="w-4 h-4" /></Button>
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center space-x-4">
+                <Button variant="outline" size="icon" onClick={() => changeDate(-1)}><ChevronLeft className="w-4 h-4" /></Button>
+                <div className="flex items-center space-x-2 px-3 min-w-[180px] justify-center font-mono">
+                    <CalendarIcon className="w-4 h-4 text-slate-600" />
+                    <span>{formattedDate}</span>
+                </div>
+                <Button variant="outline" size="icon" onClick={() => changeDate(1)}><ChevronRight className="w-4 h-4" /></Button>
             </div>
+            {latestBookingDate && latestBookingDate.toDateString() !== currentDateObj.toDateString() && (
+                 <Button variant="destructive" size="sm" className="animate-pulse shadow-lg" onClick={() => jumpToDate(latestBookingDate)}>
+                    <AlertCircle className="w-4 h-4 mr-2" /> Booking on {latestBookingDate.toLocaleDateString()} &rarr;
+                 </Button>
+            )}
           </div>
         </div>
         
-        {/* Legend */}
-        <div className="flex items-center space-x-4 mt-4 text-sm">
+        {/* LEGEND */}
+        <div className="flex items-center space-x-6 mt-4 text-sm border-t pt-4">
           <div className="flex items-center space-x-2">
             <div className="w-3 h-3 bg-green-500 rounded-full" />
-            <span>Auto-Scheduled</span>
+            <span className="text-slate-600 font-medium">Completed</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-blue-500 rounded-full" />
-            <span>Manual</span>
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+            <span className="text-slate-600 font-medium">Pending</span>
+          </div>
+          <div className="h-4 w-px bg-slate-300 mx-2"></div> 
+          <div className="flex items-center space-x-2">
+             <div className="w-3 h-3 bg-green-100 border border-green-500 rounded-sm" />
+             <span className="text-slate-500">Auto-AI</span>
           </div>
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 bg-amber-500 rounded-full" />
-            <span>Conflict</span>
+             <div className="w-3 h-3 bg-blue-50 border border-blue-400 rounded-sm" />
+             <span className="text-slate-500">Manual</span>
           </div>
         </div>
       </CardHeader>
 
       <CardContent>
         {loading ? (
-            <div className="flex items-center justify-center h-40 text-slate-500">
-                <RefreshCw className="w-6 h-6 animate-spin mr-2"/> Syncing with AI Dispatcher...
-            </div>
+            <div className="flex items-center justify-center h-40 text-slate-500"><RefreshCw className="w-6 h-6 animate-spin mr-2"/> Syncing with AI Dispatcher...</div>
         ) : (
             <div className="border rounded-lg overflow-hidden">
-            {/* Header Row */}
             <div className="grid grid-cols-5 bg-slate-50">
                 <div className="p-3 border-r border-b font-medium text-slate-500 text-sm">Time</div>
-                {bays.map((bay) => (
-                <div key={bay.id} className="p-3 border-r border-b text-center font-bold text-slate-700">
-                    {bay.name}
-                </div>
-                ))}
+                {bays.map((bay) => (<div key={bay.id} className="p-3 border-r border-b text-center font-bold text-slate-700">{bay.name}</div>))}
             </div>
-
-            {/* Time Slots */}
             {timeSlots.map((timeSlot) => (
                 <div key={timeSlot} className="grid grid-cols-5 border-b hover:bg-slate-50/50 transition-colors">
                 <div className="p-3 border-r text-sm text-slate-500 font-mono">{timeSlot}</div>
                 {bays.map((bay) => {
                     const appointment = getAppointmentAtTime(bay, timeSlot);
+                    // Calculate Status for this specific slot
+                    const statusInfo = appointment ? getServiceStatus(appointment.time) : null;
+
                     return (
-                    <div key={bay.id} className="p-1 border-r min-h-[80px] relative">
-                        {appointment && (
-                        <div
-                            className={`rounded-md p-2 text-xs h-full shadow-sm border ${
+                    <div key={bay.id} className="p-1 border-r min-h-[100px] relative"> 
+                        {appointment && statusInfo && (
+                        <div className={`rounded-md p-2 text-xs h-full shadow-sm border flex flex-col justify-between transition-all hover:shadow-md ${
                             appointment.status === 'auto-scheduled' ? 'bg-green-50 border-green-200 text-green-900' :
                             appointment.status === 'manual' ? 'bg-blue-50 border-blue-200 text-blue-900' :
                             'bg-amber-50 border-amber-200 text-amber-900'
-                            }`}
-                        >
-                            <div className="flex items-center justify-between mb-1">
-                            <span className="font-bold">{appointment.vin}</span>
-                            <Badge variant="secondary" className="text-[10px] h-5 px-1 bg-white/50">
-                                {appointment.duration}h
-                            </Badge>
+                            }`}>
+                            
+                            <div className="flex justify-between items-start mb-1">
+                                <div className="flex items-start gap-1">
+                                    {/* STATUS DOT */}
+                                    <div className={`w-2 h-2 mt-1 rounded-full ${statusInfo.color} ${statusInfo.glow}`} title={statusInfo.label} />
+                                    <div>
+                                        <span className="font-bold block leading-none">{appointment.vin}</span>
+                                        <span className="text-[9px] opacity-70 uppercase tracking-wider">{statusInfo.label}</span>
+                                    </div>
+                                </div>
+                                <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-white/60">{appointment.duration}h</Badge>
                             </div>
-                            <p className="font-medium leading-tight mb-1">{appointment.service}</p>
-                            <p className="opacity-70 truncate">{appointment.customer}</p>
+
+                            {/* 🚗 CAR IMAGE */}
+                            <div className="w-full h-12 mb-1 overflow-hidden rounded bg-white/50 flex items-center justify-center group">
+                                <img 
+                                    src={getVehicleImage(appointment.model)} 
+                                    alt={appointment.model} 
+                                    className="object-cover w-full h-full opacity-90 group-hover:scale-110 transition-transform duration-500"
+                                />
+                            </div>
+
+                            <div className="flex justify-between items-end">
+                                <p className="font-medium leading-tight mb-0.5 truncate flex-1" title={appointment.service}>{appointment.service}</p>
+                            </div>
                         </div>
                         )}
                     </div>
