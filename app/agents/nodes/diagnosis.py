@@ -3,23 +3,17 @@ from app.agents.state import AgentState
 import os
 from dotenv import load_dotenv
 
-# CHECK: Are you using Mistral (OpenRouter) or Google?
-# Uncomment the one you are using below.
-
-# --- OPTION A: MISTRAL (OpenRouter) ---
+# --- LLM SETUP ---
 from langchain_openai import ChatOpenAI
 load_dotenv()
+
+# ✅ UPDATED: Switched to Gemini 2.0 Flash (Free & Reliable)
+# This fixes the 404 "No endpoints found" error from DeepSeek
 llm = ChatOpenAI(
-    model="mistralai/devstral-2512:free", # Or your specific model
+    model="google/gemini-2.0-flash-exp:free",
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENAI_API_KEY")
 )
-
-# --- OPTION B: GOOGLE (Gemini) ---
-# from langchain_google_genai import ChatGoogleGenerativeAI
-# load_dotenv()
-# llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
-
 
 def diagnosis_node(state: AgentState) -> AgentState:
     """
@@ -38,7 +32,7 @@ def diagnosis_node(state: AgentState) -> AgentState:
     issues = "\n".join(state["detected_issues"])
     telematics = state["telematics_data"]
     
-    # ✅ UPDATED PROMPT: Forces structured Markdown output
+    # ✅ PROMPT: Forces structured Markdown output
     prompt = f"""
     You are a Senior Fleet Mechanic AI. 
     Analyze this truck's status:
@@ -77,7 +71,9 @@ def diagnosis_node(state: AgentState) -> AgentState:
         content = response.content
     except Exception as e:
         print(f"❌ LLM Error: {e}")
+        # Fallback to prevent crash
         content = "Error generating diagnosis. Please check system logs."
+        state["priority_level"] = "Medium"
 
     # 4. Save to State
     state["diagnosis_report"] = content

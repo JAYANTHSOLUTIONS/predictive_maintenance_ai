@@ -1,45 +1,71 @@
+from langchain_core.messages import HumanMessage
+from app.agents.state import AgentState
 import os
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from app.agents.state import AgentState
 
 load_dotenv()
 
+# ✅ UPDATED: Switched to Gemini 2.0 Flash (Free & Reliable)
+# This fixes the 404 error you were seeing with DeepSeek
 llm = ChatOpenAI(
-    model="mistralai/devstral-2512:free",
+    model="google/gemini-2.0-flash-exp:free",
     base_url="https://openrouter.ai/api/v1",
     api_key=os.getenv("OPENAI_API_KEY")
 )
 
 def manufacturing_node(state: AgentState) -> AgentState:
+    """
+    Worker 5: The Engineer.
+    Analyzes the diagnosis to suggest long-term product improvements (CAPA).
+    """
     print("🏭 [Manufacturing] Analyzing failure for fleet-wide patterns...")
-    
-    # Only run if there is a real issue
-    if state["risk_score"] < 40:
-        state["manufacturing_recommendations"] = "No design changes needed."
+
+    # 1. Skip if no critical diagnosis exists or risk is low
+    if not state.get("diagnosis_report") or state.get("priority_level") == "Low":
+        state["manufacturing_recommendations"] = "No critical design flaws detected."
         return state
 
+    # 2. Input Data
     diagnosis = state["diagnosis_report"]
-    model = state["vehicle_metadata"].get("model")
+    model = state['vehicle_metadata'].get('model', 'Unknown Model')
 
+    # 3. PROMPT: Force the AI to use Markdown Structure
     prompt = f"""
-    You are a Quality Engineering AI at the {model} factory.
-    A vehicle has failed in the field.
+    You are a Senior Automotive Product Engineer.
+    A critical failure occurred in the **{model}**.
     
-    Diagnosis: {diagnosis}
+    Diagnosis Report:
+    {diagnosis}
+
+    TASK: Propose a "Corrective and Preventive Action" (CAPA) plan for the engineering team.
     
-    TASK:
-    Suggest a 'Root Cause Design Improvement' to prevent this in future models.
-    Focus on material changes, sensor placement, or software logic.
-    
-    Output format:
-    Design Flaw: [What failed]
-    Engineering Fix: [Technical solution]
+    IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers and bullets.
+
+    ### 🏭 Design Flaw Analysis
+    * **Vulnerability:** [What specific part of the design failed?]
+    * **Root Cause:** [Why did it fail? e.g., lack of redundancy, poor material]
+
+    ### 🔧 Engineering Fix (CAPA)
+    * **Hardware Upgrade:** [e.g., Replace plastic pump impellers with brass]
+    * **Sensor Logic:** [e.g., Add cross-validation between oil/temp sensors]
+    * **Fail-Safe Mechanism:** [e.g., Auto-shutdown if Temp > 120°C]
+
+    ### 🧪 Validation Plan
+    * **Testing:** [e.g., Run HIL simulation for 500 hours]
+    * **Expected Result:** [e.g., Reduce field failure rate by 80%]
     """
 
-    response = llm.invoke([HumanMessage(content=prompt)])
-    state["manufacturing_recommendations"] = response.content
+    # 4. Call LLM
+    try:
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content
+        print("✅ [Manufacturing] CAPA Report Generated.")
+    except Exception as e:
+        print(f"❌ Manufacturing Agent Error: {e}")
+        content = "Could not generate engineering report."
+
+    # 5. Save to State
+    state["manufacturing_recommendations"] = content
     
-    print("✅ [Manufacturing] CAPA Report Generated.")
     return state
