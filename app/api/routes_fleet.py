@@ -4,9 +4,6 @@ from fastapi import APIRouter
 from typing import List, Optional
 from pydantic import BaseModel
 
-# ✅ IMPORT THE SCHEDULER SERVICE TO ACCESS REAL-TIME MEMORY
-from app.agents.nodes.scheduling import SchedulerService
-
 router = APIRouter()
 
 # --- 1. DATA MODELS ---
@@ -63,7 +60,7 @@ def resolve_location(gps_data):
 @router.get("/status", response_model=List[VehicleSummary])
 async def get_fleet_status():
     """
-    Returns the fleet list merged with AI logs AND real-time memory.
+    Returns the fleet list merged with AI logs and scheduling data.
     """
     if not os.path.exists(DATA_FILE):
         return []
@@ -75,10 +72,6 @@ async def get_fleet_status():
         vehicles = data.get("vehicles", {})
         summary_list = []
 
-        # ✅ 1. GET REAL-TIME BOOKINGS FROM MEMORY
-        # Convert list to a dictionary for fast lookup: { "VIN-123": BookingObject }
-        live_bookings = {b['vin']: b for b in SchedulerService.get_all_bookings()}
-
         for v_id, v_data in vehicles.items():
             # Defaults
             failure = "System Healthy"
@@ -86,50 +79,39 @@ async def get_fleet_status():
             action = "Monitoring"
             s_date = None
             
-            # Get Real Location from Data
+            # 1. Get Real Location from Data
             telematics = v_data.get("telematics", {})
             real_location = resolve_location(telematics.get("gps_location"))
 
-            # ✅ 2. CHECK MEMORY FIRST (Priority over disk files)
-            # If the Agent just booked it, this will run immediately
-            if v_id in live_bookings:
-                booking = live_bookings[v_id]
-                failure = booking.get("service_type", "Scheduled Maintenance")
-                prob = 99 # It's booked, so issue is confirmed
-                action = "Service Booked"
-                s_date = f"{booking['slot_date']} {booking['slot_time']}"
-
-            # 3. IF NOT IN MEMORY, CHECK LOG FILES (Fallback logic)
-            else:
-                log_path = os.path.join(LOG_DIR, f"run_log_{v_id}.json")
-                if os.path.exists(log_path):
-                    try:
-                        with open(log_path, "r") as log_f:
-                            ai_result = json.load(log_f)
-                            prob = ai_result.get("risk_score", 0)
-                            
-                            # Failure
-                            issues = ai_result.get("detected_issues", [])
-                            if issues: failure = issues[0]
-                            elif prob > 50: failure = "Unknown Anomaly"
-                            
-                            # Action & Date
-                            decision = ai_result.get("customer_decision")
-                            
-                            if decision == "accept" or ai_result.get("booking_id"):
-                                action = "Service Booked"
-                                s_date = ai_result.get("selected_slot") or ai_result.get("scheduled_date")
-                            elif decision == "reject":
-                                action = "Customer Contacted"
-                            elif prob > 70:
-                                action = "Alert Sent"
-                    except Exception:
-                        pass
+            # 2. Check AI Log
+            log_path = os.path.join(LOG_DIR, f"run_log_{v_id}.json")
+            if os.path.exists(log_path):
+                try:
+                    with open(log_path, "r") as log_f:
+                        ai_result = json.load(log_f)
+                        prob = ai_result.get("risk_score", 0)
+                        
+                        # Failure
+                        issues = ai_result.get("detected_issues", [])
+                        if issues: failure = issues[0]
+                        elif prob > 50: failure = "Unknown Anomaly"
+                        
+                        # Action & Date
+                        decision = ai_result.get("customer_decision")
+                        if decision == "accept":
+                            action = "Service Booked"
+                            s_date = ai_result.get("scheduled_date")
+                        elif decision == "reject":
+                            action = "Customer Contacted"
+                        elif prob > 70:
+                            action = "Alert Sent"
+                except Exception:
+                    pass
 
             summary_list.append(VehicleSummary(
                 vin=v_id,
                 model=v_data.get("metadata", {}).get("model", "Unknown Model"),
-                location=real_location, 
+                location=real_location, # <--- Uses the resolved city name
                 telematics="Live",
                 predictedFailure=failure,
                 probability=prob,
@@ -149,65 +131,54 @@ async def get_agent_activity():
     """
     activities = []
     
-    # ✅ 1. READ FROM MEMORY (The "Just Now" events)
-    # This ensures the dashboard updates instantly when you click "Run AI"
-    real_bookings = SchedulerService.get_all_bookings()
-    for b in real_bookings:
-         activities.append(ActivityLog(
-            id=f"{b['vin']}-live",
-            time="Just now", 
-            agent="Scheduling Bot",
-            vehicle_id=b['vin'],
-            message=f"Confirmed service: {b['service_type']} at {b['slot_time']}",
-            type="info"
-        ))
-    
-    # 2. READ FROM FILES (Historical events)
-    if os.path.exists(LOG_DIR):
-        for filename in os.listdir(LOG_DIR):
-            if filename.startswith("run_log_") and filename.endswith(".json"):
-                vehicle_id = filename.replace("run_log_", "").replace(".json", "")
-                filepath = os.path.join(LOG_DIR, filename)
-                
-                try:
-                    with open(filepath, "r") as f:
-                        data = json.load(f)
-                        
-                        # Diagnosis Agent Log
-                        if data.get("diagnosis"): # Assuming key is diagnosis_report or similar check
-                            activities.append(ActivityLog(
-                                id=f"{vehicle_id}-diag",
-                                time="Today", 
-                                agent="Diagnosis Agent",
-                                vehicle_id=vehicle_id,
-                                message=f"Identified issue: {data.get('detected_issues', ['Unknown'])[0]}",
-                                type="info"
-                            ))
+    if not os.path.exists(LOG_DIR):
+        return []
 
-                        # Risk Agent Log
-                        risk_score = data.get("risk_score", 0)
-                        if risk_score > 50:
-                             activities.append(ActivityLog(
-                                id=f"{vehicle_id}-risk",
-                                time="Today",
-                                agent="Risk Guardian",
-                                vehicle_id=vehicle_id,
-                                message=f"Escalated high risk profile ({risk_score}%)",
-                                type="alert" if risk_score > 80 else "warning"
-                            ))
-                        
-                        # Scheduler Agent Log (From file history)
-                        if data.get("booking_id") and vehicle_id not in [b['vin'] for b in real_bookings]:
-                             activities.append(ActivityLog(
-                                id=f"{vehicle_id}-book",
-                                time="Scheduled",
-                                agent="Scheduling Bot",
-                                vehicle_id=vehicle_id,
-                                message=f"Confirmed service appointment {data.get('booking_id')}",
-                                type="info"
-                            ))
+    # Loop through all files
+    for filename in os.listdir(LOG_DIR):
+        if filename.startswith("run_log_") and filename.endswith(".json"):
+            vehicle_id = filename.replace("run_log_", "").replace(".json", "")
+            filepath = os.path.join(LOG_DIR, filename)
+            
+            try:
+                with open(filepath, "r") as f:
+                    data = json.load(f)
+                    
+                    # 1. Diagnosis Agent Log
+                    if data.get("diagnosis"):
+                        activities.append(ActivityLog(
+                            id=f"{vehicle_id}-diag",
+                            time="Just now", 
+                            agent="Diagnosis Agent",
+                            vehicle_id=vehicle_id,
+                            message=f"Identified issue: {data.get('detected_issues', ['Unknown'])[0]}",
+                            type="info"
+                        ))
 
-                except Exception:
-                    continue
+                    # 2. Risk Agent Log
+                    risk_score = data.get("risk_score", 0)
+                    if risk_score > 50:
+                         activities.append(ActivityLog(
+                            id=f"{vehicle_id}-risk",
+                            time="Just now",
+                            agent="Risk Guardian",
+                            vehicle_id=vehicle_id,
+                            message=f"Escalated high risk profile ({risk_score}%)",
+                            type="alert" if risk_score > 80 else "warning"
+                        ))
+                    
+                    # 3. Scheduler Agent Log
+                    if data.get("booking_id"):
+                         activities.append(ActivityLog(
+                            id=f"{vehicle_id}-book",
+                            time="Scheduled",
+                            agent="Scheduling Bot",
+                            vehicle_id=vehicle_id,
+                            message=f"Confirmed service appointment {data.get('booking_id')}",
+                            type="info"
+                        ))
+
+            except Exception:
+                continue
 
     return activities
