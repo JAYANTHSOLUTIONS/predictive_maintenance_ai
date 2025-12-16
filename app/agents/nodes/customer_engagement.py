@@ -4,23 +4,30 @@ from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from app.agents.state import AgentState
 
-load_dotenv()
+# --- 1. LOAD ENVIRONMENT VARIABLES ---
+load_dotenv() # This reads the .env file
 
-# Initialize LLM
-# ✅ UPDATED: Switched to Gemini 2.0 Flash (Free & Reliable)
-# DeepSeek V3.2 is paid, so we use Gemini Free to ensure your demo works.
+# --- 2. FETCH KEY FROM ENV ---
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+if not groq_api_key:
+    # Stop the server or warn if the key is missing
+    raise ValueError("❌ ERROR: GROQ_API_KEY is missing from .env file!")
+
+# --- 3. SETUP GROQ LLM ---
 llm = ChatOpenAI(
-    model="google/gemini-2.0-flash-exp:free",
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENAI_API_KEY")
+    model="llama-3.3-70b-versatile",
+    base_url="https://api.groq.com/openai/v1",
+    api_key=groq_api_key
 )
 
 def customer_node(state: AgentState) -> AgentState:
     print("🗣️ [Customer] Drafting notification...")
     
-    # Get details
-    owner = state["vehicle_metadata"].get("owner", "Customer")
-    model = state["vehicle_metadata"].get("model", "Vehicle")
+    # Get details from the graph state
+    # Use .get() with defaults to avoid crashes if metadata is missing
+    owner = state.get("vehicle_metadata", {}).get("owner", "Customer")
+    model = state.get("vehicle_metadata", {}).get("model", "Vehicle")
     diagnosis = state.get("diagnosis_report", "Maintenance Required")
     priority = state.get("priority_level", "Medium")
 
@@ -37,6 +44,7 @@ def customer_node(state: AgentState) -> AgentState:
     """
 
     try:
+        # Call Groq
         response = llm.invoke([HumanMessage(content=prompt)])
         state["customer_script"] = response.content
     except Exception as e:
@@ -45,6 +53,7 @@ def customer_node(state: AgentState) -> AgentState:
         state["customer_script"] = f"Urgent: Your {model} requires service. Please contact us to book an appointment."
 
     # Simulating the customer saying "YES" because it's Critical
+    # In a real app, this would be a separate input node/wait state.
     print(f"📞 [Customer] Message sent to {owner}. Waiting for reply...")
     state["customer_decision"] = "BOOKED" 
     

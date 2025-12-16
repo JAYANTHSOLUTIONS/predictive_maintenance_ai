@@ -1,14 +1,14 @@
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 
-# Import your modular routes
+# ✅ FIX 1: Correct Imports matching your file structure (app/api/routes_*.py)
+# You do not have a 'routers' folder, so we import directly from app.api
 from app.api import routes_predictive, routes_telematics, routes_fleet
 
 app = FastAPI(title="Predictive Maintenance AI API")
 
 # --- CORS SETUP ---
-# We allow ["*"] (All origins) to prevent any connection issues during the demo
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -20,7 +20,6 @@ app.add_middleware(
 # --- Register Routes ---
 app.include_router(routes_predictive.router, prefix="/api/predictive", tags=["AI"])
 app.include_router(routes_telematics.router, prefix="/api/telematics", tags=["Data"])
-# ✅ ADDED THIS LINE:
 app.include_router(routes_fleet.router, prefix="/api/fleet", tags=["Fleet"])
 
 @app.get("/")
@@ -28,4 +27,7 @@ def health_check():
     return {"status": "AI System Online", "version": "1.0.0"}
 
 if __name__ == "__main__":
+    # ✅ FIX 2: Correct App Path for Uvicorn
+    # This assumes you are running the command from the project ROOT folder
+    print("🚀 Starting Server...")
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

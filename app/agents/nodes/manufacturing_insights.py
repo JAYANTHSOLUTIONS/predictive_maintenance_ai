@@ -6,12 +6,17 @@ from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
-# ✅ UPDATED: Switched to Gemini 2.0 Flash (Free & Reliable)
-# This fixes the 404 error you were seeing with DeepSeek
+# ✅ UPDATED: Fetch Key from Environment & Use Groq
+# This reads 'GROQ_API_KEY' from your .env file
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+if not groq_api_key:
+    print("❌ ERROR: GROQ_API_KEY not found in .env file")
+
 llm = ChatOpenAI(
-    model="google/gemini-2.0-flash-exp:free",
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENAI_API_KEY")
+    model="llama-3.3-70b-versatile",
+    base_url="https://api.groq.com/openai/v1",
+    api_key=groq_api_key
 )
 
 def manufacturing_node(state: AgentState) -> AgentState:

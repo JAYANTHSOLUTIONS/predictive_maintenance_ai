@@ -1,4 +1,4 @@
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from app.agents.state import AgentState
 import os
 from dotenv import load_dotenv
@@ -7,12 +7,17 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 load_dotenv()
 
-# ✅ UPDATED: Switched to Gemini 2.0 Flash (Free & Reliable)
-# This fixes the 404 "No endpoints found" error from DeepSeek
+# ✅ UPDATED: Fetch Key from Environment & Use Groq
+# This reads 'GROQ_API_KEY' from your .env file
+groq_api_key = os.getenv("GROQ_API_KEY")
+
+if not groq_api_key:
+    print("❌ ERROR: GROQ_API_KEY not found in .env file")
+
 llm = ChatOpenAI(
-    model="google/gemini-2.0-flash-exp:free",
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENAI_API_KEY")
+    model="llama-3.3-70b-versatile",
+    base_url="https://api.groq.com/openai/v1",
+    api_key=groq_api_key
 )
 
 def diagnosis_node(state: AgentState) -> AgentState:
@@ -29,22 +34,28 @@ def diagnosis_node(state: AgentState) -> AgentState:
         return state
 
     # 2. Prepare prompt for the AI
-    issues = "\n".join(state["detected_issues"])
-    telematics = state["telematics_data"]
+    # Handle list or string for detected_issues
+    detected = state.get("detected_issues", [])
+    if isinstance(detected, list):
+        issues = "\n".join(detected)
+    else:
+        issues = str(detected)
+
+    telematics = state.get("telematics_data", {})
     
     # ✅ PROMPT: Forces structured Markdown output
     prompt = f"""
     You are a Senior Fleet Mechanic AI. 
     Analyze this truck's status:
     
-    Vehicle: {state['vehicle_metadata'].get('model')}
+    Vehicle: {state['vehicle_metadata'].get('model', 'Unknown Model')}
     Issues Detected:
     {issues}
     
     Telematics:
-    - Oil Pressure: {telematics.get('oil_pressure_psi')} psi
-    - Engine Temp: {telematics.get('engine_temp_c')} C
-    - Active Codes: {telematics.get('dtc_readable')}
+    - Oil Pressure: {telematics.get('oil_pressure_psi', 'N/A')} psi
+    - Engine Temp: {telematics.get('engine_temp_c', 'N/A')} C
+    - Active Codes: {telematics.get('dtc_readable', 'None')}
     
     IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers and bullets.
     
@@ -70,7 +81,7 @@ def diagnosis_node(state: AgentState) -> AgentState:
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content
     except Exception as e:
-        print(f"❌ LLM Error: {e}")
+        print(f"❌ Diagnosis Agent LLM Error: {e}")
         # Fallback to prevent crash
         content = "Error generating diagnosis. Please check system logs."
         state["priority_level"] = "Medium"

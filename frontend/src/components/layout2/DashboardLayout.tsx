@@ -11,10 +11,12 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, currentPage, onNavigate }: DashboardLayoutProps) {
   return (
-    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    // ✅ CHANGED: Gradient updated to dark, metallic grey/slate tones
+    <div className="flex h-screen bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900">
       <Sidebar currentPage={currentPage} onNavigate={onNavigate} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header onNavigate={onNavigate} />
+        {/* The main content area where children are rendered */}
         <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>

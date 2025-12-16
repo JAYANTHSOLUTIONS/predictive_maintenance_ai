@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'; 
 import { Badge } from '../ui/badge'; 
 import { Button } from '../ui/button'; 
@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, RefreshCw, AlertCi
 // ✅ Import your API Bridge
 import { api } from '../../services/api'; 
 
+// --- TYPES ---
 interface ServiceBay {
   id: string;
   name: string;
@@ -26,27 +27,22 @@ interface Appointment {
 
 const timeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'];
 
-// 🖼️ HELPER: Get Image URL based on Car Model (Using your provided links)
+// 🖼️ HELPER: Get Image URL based on Car Model
 const getVehicleImage = (model: string) => {
   const m = model || ""; 
-  // Mahindra
+  // Specific check for our Demo Vehicle
+  if (m.includes('V-101') || m.includes('Scorpio')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40432/scorpio-n-exterior-right-front-three-quarter-75.jpeg';
+
   if (m.includes('Thar')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40087/thar-exterior-right-front-three-quarter-11.jpeg';
-  if (m.includes('Scorpio N')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40432/scorpio-n-exterior-right-front-three-quarter-75.jpeg';
-  if (m.includes('Scorpio')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/128413/scorpio-classic-exterior-right-front-three-quarter-46.jpeg';
+  if (m.includes('Scorpio N')) return 'https://i.pinimg.com/736x/f2/cf/5e/f2cf5ef4e4b51d29e3420fc32105c3ca.jpg';
   if (m.includes('XUV 3XO') || m.includes('3XO')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/156405/xuv-3xo-exterior-right-front-three-quarter-33.jpeg';
   if (m.includes('XUV700')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/42355/xuv700-exterior-right-front-three-quarter-3.jpeg'; 
-  
-  /// Honda
   if (m.includes('City')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/134287/city-exterior-right-front-three-quarter-77.jpeg'; 
   if (m.includes('Elevate')) return 'https://i.pinimg.com/1200x/a6/42/c4/a642c4eaf195c46ef3adbc1e13dac0e4.jpg'; 
-
-  // Other Common Fleet Cars (New Additions)
   if (m.includes('Fortuner')) return 'https://i.pinimg.com/1200x/b8/a3/19/b8a319905659c8f0fae009dcc47906c0.jpg';
   if (m.includes('Creta')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/141115/creta-exterior-right-front-three-quarter.jpeg';
   if (m.includes('Nexon')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/141867/nexon-exterior-right-front-three-quarter-71.jpeg';
   if (m.includes('Innova')) return 'https://i.pinimg.com/1200x/fe/e6/ee/fee6eea7b191112a744e2bf23a277871.jpg';
-
-  // Fallback
   return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/130591/fronx-exterior-right-front-three-quarter-109.jpeg';
 };
 
@@ -57,28 +53,27 @@ export function SchedulerCalendar() {
   const [latestBookingDate, setLatestBookingDate] = useState<Date | null>(null);
 
   const formattedDate = currentDateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const logicDate = currentDateObj.toISOString().split('T')[0];
+  
+  // Logic date for Mock Generator: Local YYYY-MM-DD (Fixes timezone issues)
+  const logicDate = new Date(currentDateObj.getTime() - (currentDateObj.getTimezoneOffset() * 60000))
+    .toISOString()
+    .split('T')[0];
 
   // 🕒 HELPER: Determine if Service is Finished or Pending
   const getServiceStatus = (apptTime: string) => {
     const now = new Date();
-    
-    // Create a date object for this appointment's specific slot
     const apptDateTime = new Date(currentDateObj);
     const [hours, minutes] = apptTime.split(':').map(Number);
     apptDateTime.setHours(hours, minutes, 0, 0);
 
-    // Compare with NOW
     if (apptDateTime < now) {
-        // ✅ COMPLETED = GREEN
         return { color: 'bg-green-500', label: 'Completed', glow: '' };
     } else {
-        // ✅ PENDING = RED
         return { color: 'bg-red-500', label: 'Pending', glow: 'animate-pulse' };
     }
   };
 
-  // 🎲 GENERATOR: Create Random Schedule for Any Date
+  // 🎲 GENERATOR: Create Mock Schedule
   const generateMockSchedule = (dateStr: string): ServiceBay[] => {
     const day = parseInt(dateStr.split('-')[2]) || 1;
     const isEvenDay = day % 2 === 0;
@@ -120,47 +115,81 @@ export function SchedulerCalendar() {
       ];
   };
 
+  // 🚀 MAIN LOGIC: Fetch Backend Data & Merge with Mock Data
   const loadSchedule = async () => {
     setLoading(true);
     
     try {
       const fleet = await api.getFleetStatus();
-      const realBookings = fleet.filter(v => v.action === 'Service Booked' && v.scheduled_date);
+      
+      // Filter for bookings created by your AI Agent
+      const realBookings = fleet.filter((v: any) => (v.action === 'Service Booked' || v.scheduled_date) && v.scheduled_date);
 
+      // Latest Booking Logic (Jump Button)
       if (realBookings.length > 0) {
-        const lastBooking = realBookings[realBookings.length - 1];
+        realBookings.sort((a: any, b: any) => new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime());
+        const lastBooking = realBookings[0];
         if (lastBooking.scheduled_date) {
-            const dateString = lastBooking.scheduled_date.split(' ')[0];
+            const dateString = lastBooking.scheduled_date.split(' ')[0]; 
+            // Add Noon time to prevent timezone rollover
             setLatestBookingDate(new Date(`${dateString}T12:00:00`));
         }
       }
 
+      // Generate Base Schedule (Mock Data)
       const baseSchedule = generateMockSchedule(logicDate);
 
-      // Inject Real Bookings into Bay 1 (Heavy / Critical)
-      realBookings.forEach((vehicle) => {
+      // 💉 INJECT REAL BOOKINGS
+      realBookings.forEach((vehicle: any) => {
           if (!vehicle.scheduled_date) return;
-          const [vDate, vTimeFull] = vehicle.scheduled_date.split(' '); 
           
-          if (vDate === logicDate) {
-              const timeSlot = vTimeFull.substring(0, 5); 
-              baseSchedule[0].appointments.push({
-                  id: `real-${vehicle.vin}`,
-                  time: timeSlot, 
-                  duration: 2, 
-                  vin: vehicle.vin,
-                  // Use the Model returned by the API (which is populated from your JSON)
-                  model: vehicle.model || 'Scorpio Classic', 
-                  service: vehicle.predictedFailure || 'Critical Repair',
-                  status: 'auto-scheduled',
-                  customer: 'AI Priority Booking'
-              });
+          const [vDateString, vTimeFull] = vehicle.scheduled_date.split(' '); // "2025-12-17" and "11:00"
+          
+          // STRICT DATE MATCHING (No Timezones)
+          const [bYear, bMonth, bDay] = vDateString.split('-').map(Number);
+          const cYear = currentDateObj.getFullYear();
+          const cMonth = currentDateObj.getMonth() + 1; // JS Month is 0-indexed
+          const cDay = currentDateObj.getDate();
+
+          const isSameDay = (bYear === cYear) && (bMonth === cMonth) && (bDay === cDay);
+
+          if (isSameDay) {
+              const timeSlot = vTimeFull.substring(0, 5); // "09:00"
+              
+              // 🚑 FORCE MODEL NAME FOR V-101
+              let displayModel = vehicle.model || 'Unknown Model';
+              if (vehicle.vin === 'V-101') {
+                  displayModel = 'Mahindra Scorpio N';
+              }
+
+              // 🚨 NUCLEAR OPTION: Find Bay 1 and DESTROY any appointment at this time
+              const bay1Index = baseSchedule.findIndex(b => b.id === 'bay-1');
+              
+              if (bay1Index !== -1) {
+                  // Filter out the conflict
+                  baseSchedule[bay1Index].appointments = baseSchedule[bay1Index].appointments.filter(
+                      appt => appt.time !== timeSlot
+                  );
+
+                  // Push the Real Booking
+                  baseSchedule[bay1Index].appointments.push({
+                      id: `real-${vehicle.vin}`,
+                      time: timeSlot, 
+                      duration: 2, 
+                      vin: vehicle.vin,
+                      model: displayModel, // ✅ Uses forced model name
+                      service: vehicle.predictedFailure || 'Critical AI Repair',
+                      status: 'auto-scheduled',
+                      customer: 'AI Priority Booking'
+                  });
+              }
           }
       });
 
       setBays(baseSchedule);
     } catch (e) {
       console.error("Failed to sync schedule", e);
+      setBays(generateMockSchedule(logicDate));
     } finally {
       setLoading(false);
     }
@@ -168,6 +197,7 @@ export function SchedulerCalendar() {
 
   useEffect(() => { loadSchedule(); }, [currentDateObj]); 
 
+  // --- NAVIGATION HANDLERS ---
   const changeDate = (days: number) => {
     const newDate = new Date(currentDateObj);
     newDate.setDate(newDate.getDate() + days);
@@ -175,8 +205,11 @@ export function SchedulerCalendar() {
   };
 
   const jumpToDate = (targetDate: Date) => { setCurrentDateObj(targetDate); };
-  const getAppointmentAtTime = (bay: ServiceBay, timeSlot: string) => bay.appointments.find((apt) => apt.time === timeSlot);
+  
+  const getAppointmentAtTime = (bay: ServiceBay, timeSlot: string) => 
+    bay.appointments.find((apt) => apt.time === timeSlot);
 
+  // --- RENDER ---
   return (
     <Card>
       <CardHeader>
@@ -238,7 +271,6 @@ export function SchedulerCalendar() {
                 <div className="p-3 border-r text-sm text-slate-500 font-mono">{timeSlot}</div>
                 {bays.map((bay) => {
                     const appointment = getAppointmentAtTime(bay, timeSlot);
-                    // Calculate Status for this specific slot
                     const statusInfo = appointment ? getServiceStatus(appointment.time) : null;
 
                     return (
@@ -252,7 +284,6 @@ export function SchedulerCalendar() {
                             
                             <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-start gap-1">
-                                    {/* STATUS DOT */}
                                     <div className={`w-2 h-2 mt-1 rounded-full ${statusInfo.color} ${statusInfo.glow}`} title={statusInfo.label} />
                                     <div>
                                         <span className="font-bold block leading-none">{appointment.vin}</span>
@@ -262,7 +293,6 @@ export function SchedulerCalendar() {
                                 <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-white/60">{appointment.duration}h</Badge>
                             </div>
 
-                            {/* 🚗 CAR IMAGE */}
                             <div className="w-full h-12 mb-1 overflow-hidden rounded bg-white/50 flex items-center justify-center group">
                                 <img 
                                     src={getVehicleImage(appointment.model)} 
