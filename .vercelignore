@@ -1,0 +1,6 @@
+.venv/
+data/
+models/*.pt
+models/*.pkl
+tests/
+notebooks/
