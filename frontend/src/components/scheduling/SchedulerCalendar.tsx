@@ -31,7 +31,7 @@ const timeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00'
 const getVehicleImage = (model: string) => {
   const m = model || ""; 
   // Specific check for our Demo Vehicle
-  if (m.includes('V-101') || m.includes('Scorpio')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40432/scorpio-n-exterior-right-front-three-quarter-75.jpeg';
+  if (m.includes('V-101') || m.includes('Scorpio')) return 'https://i.pinimg.com/736x/f2/cf/5e/f2cf5ef4e4b51d29e3420fc32105c3ca.jpg';
 
   if (m.includes('Thar')) return 'https://imgd.aeplcdn.com/370x208/n/cw/ec/40087/thar-exterior-right-front-three-quarter-11.jpeg';
   if (m.includes('Scorpio N')) return 'https://i.pinimg.com/736x/f2/cf/5e/f2cf5ef4e4b51d29e3420fc32105c3ca.jpg';

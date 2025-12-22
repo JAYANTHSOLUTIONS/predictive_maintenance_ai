@@ -1,10 +1,18 @@
 import { useState } from 'react';
+// MUI Imports
+import Box from '@mui/material/Box';
+import Stepper from '@mui/material/Stepper';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+
+// Existing Imports
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Progress } from '../ui/progress';
+// Removed existing Progress import as it is replaced by Stepper
+// import { Progress } from '../ui/progress'; 
 import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
 
 interface RegisterProps {
@@ -12,11 +20,14 @@ interface RegisterProps {
   onSwitchToLogin: () => void;
 }
 
+// Define the steps based on your form logic
+const steps = ['Account Details', 'Role Selection', 'Location Assignment'];
+
 export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+   
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -72,9 +83,6 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
       });
 
       if (response.ok) {
-        // --- THE FIX IS HERE ---
-        // 1. We do NOT call onRegister(token) anymore.
-        // 2. Instead, we show a success message and switch to the Login screen.
         alert("Registration successful! Please sign in with your new account.");
         onSwitchToLogin(); 
       } else {
@@ -87,8 +95,6 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
     }
   };
 
-  const progress = (step / 3) * 100;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center p-8">
       <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl p-8">
@@ -99,19 +105,18 @@ export function Register({ onRegister, onSwitchToLogin }: RegisterProps) {
           <p className="text-slate-600">Join the OEM Aftersales Intelligence Platform</p>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between mb-2">
-            <span className="text-sm">Step {step} of 3</span>
-            <span className="text-sm text-slate-600">{progress.toFixed(0)}% Complete</span>
-          </div>
-          <Progress value={progress} />
-          <div className="flex justify-between mt-3 text-xs text-slate-600">
-            <span className={step >= 1 ? 'text-blue-600 font-medium' : ''}>Account Details</span>
-            <span className={step >= 2 ? 'text-blue-600 font-medium' : ''}>Role Selection</span>
-            <span className={step >= 3 ? 'text-blue-600 font-medium' : ''}>Location Assignment</span>
-          </div>
-        </div>
+        {/* --- MUI STEPPER INTEGRATION START --- */}
+        <Box sx={{ width: '100%', mb: 6 }}>
+          {/* Active step is 0-indexed, so we subtract 1 from your existing step state */}
+          <Stepper activeStep={step - 1} alternativeLabel>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+        </Box>
+        {/* --- MUI STEPPER INTEGRATION END --- */}
 
         <form onSubmit={handleSubmit}>
           {/* Step 1: Account Details */}

@@ -1,3 +1,5 @@
+import * as React from 'react';
+import Drawer from '@mui/material/Drawer';
 import {
   LayoutDashboard,
   Activity,
@@ -12,6 +14,8 @@ import { cn } from '../ui/utils';
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 const menuItems = [
@@ -22,9 +26,13 @@ const menuItems = [
   { id: 'security', label: 'Security & UEBA', icon: Shield },
 ];
 
-export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
-  return (
-    <div className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen shadow-sm">
+export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarProps) {
+  
+  const DrawerList = (
+    <div 
+      className="w-80 bg-white flex flex-col h-full" 
+      role="presentation"
+    >
       {/* Logo */}
       <div className="p-6 border-b border-slate-200">
         <div className="flex items-center space-x-3">
@@ -46,7 +54,10 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => {
+                onNavigate(item.id);
+                // onClose(); // Uncomment if you want the drawer to close immediately upon clicking a link
+              }}
               className={cn(
                 'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200',
                 isActive
@@ -65,7 +76,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Agent Status Indicator */}
-      <div className="p-4 border-t border-slate-200">
+      <div className="p-4 border-t border-slate-200 mt-auto">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200 shadow-sm">
           <div className="flex items-center space-x-2 mb-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-lg shadow-green-500/50" />
@@ -80,5 +91,15 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         <p className="text-xs text-center text-slate-400">© 2025 PredictAI</p>
       </div>
     </div>
+  );
+
+  return (
+    <Drawer
+      anchor="left" // ✅ CHANGED: Now opens from the Left
+      open={isOpen}
+      onClose={onClose}
+    >
+      {DrawerList}
+    </Drawer>
   );
 }

@@ -2,8 +2,12 @@ import os
 import json
 import glob
 from fastapi import APIRouter
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# --- 0. LOAD ENVIRONMENT ---
+load_dotenv() 
 
 router = APIRouter()
 
@@ -16,7 +20,8 @@ class VehicleSummary(BaseModel):
     predictedFailure: str
     probability: int
     action: str
-    scheduled_date: Optional[str] = None  # Crucial for the Calendar!
+    scheduled_date: Optional[str] = None
+    voice_transcript: Optional[List[Dict[str, Any]]] = None # <--- NEW FIELD FOR VOICE LOGS
 
 class ActivityLog(BaseModel):
     id: str
@@ -29,8 +34,11 @@ class ActivityLog(BaseModel):
 # --- 2. FILE PATHS ---
 # We point to the same folder where 'master.py' saves the logs
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_FILE = os.path.join(BASE_DIR, "data_samples", "collected_data.json")
-LOG_DIR = os.path.join(BASE_DIR, "data_samples")
+DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data_samples")
+
+# ✅ Fetch from ENV or use Default
+LOG_DIR = os.getenv("DATA_SAMPLES_DIR", DEFAULT_DATA_DIR)
+DATA_FILE = os.path.join(LOG_DIR, "collected_data.json")
 
 # --- 3. HELPER: MOCK GEOCODING ---
 def resolve_location(gps_data):
@@ -56,46 +64,48 @@ def resolve_location(gps_data):
 @router.get("/status", response_model=List[VehicleSummary])
 async def get_fleet_status():
     """
-    Returns the fleet list, BUT updates it with any recent AI runs found in run_log_*.json
+    Returns the fleet list merged with AI Voice Logs and Scheduling data.
     """
-    # A. Load Base Fleet Data (Static or Collected)
+    # A. Load Base Fleet
     if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            data = json.load(f)
-            vehicles = data.get("vehicles", {})
+        try:
+            with open(DATA_FILE, "r") as f:
+                data = json.load(f)
+                vehicles = data.get("vehicles", {})
+        except Exception:
+            vehicles = {}
     else:
-        # Fallback if file missing
         vehicles = {} 
 
     summary_list = []
 
-    # B. PRE-SCAN AI LOGS (The Missing Link)
-    # We create a map of { "V-101": { ...log_data... } } for fast lookup
+    # B. SCAN AI LOGS
     ai_updates = {}
-    log_pattern = os.path.join(LOG_DIR, "run_log_*.json")
-    found_logs = glob.glob(log_pattern)
+    if os.path.exists(LOG_DIR):
+        log_pattern = os.path.join(LOG_DIR, "run_log_*.json")
+        found_logs = glob.glob(log_pattern)
 
-    for log_path in found_logs:
-        try:
-            with open(log_path, "r") as f:
-                log_data = json.load(f)
-                v_id = log_data.get("vehicle_id")
-                if v_id:
-                    ai_updates[v_id] = log_data
-        except Exception as e:
-            print(f"❌ Error reading log {log_path}: {e}")
+        for log_path in found_logs:
+            try:
+                with open(log_path, "r") as f:
+                    log_data = json.load(f)
+                    v_id = log_data.get("vehicle_id")
+                    if v_id:
+                        ai_updates[v_id] = log_data
+            except Exception as e:
+                print(f"❌ Error reading log {log_path}: {e}")
 
-    # C. BUILD THE RESPONSE LIST
+    # C. BUILD RESPONSE
     for v_id, v_data in vehicles.items():
         # Defaults
         failure = "System Healthy"
         prob = 0
         action = "Monitoring"
         s_date = None
+        transcript = None # Default empty
         
         # 1. Get Real Location
-        telematics = v_data.get("telematics", {})
-        real_location = resolve_location(telematics.get("gps_location"))
+        real_location = resolve_location(v_data.get("telematics", {}).get("gps_location"))
 
         # 2. OVERWRITE WITH AI DATA if available
         if v_id in ai_updates:
@@ -105,18 +115,19 @@ async def get_fleet_status():
             prob = ai_data.get("risk_score", 0)
             issues = ai_data.get("detected_issues", [])
             
-            # If AI found issues, override the status
             if issues: 
                 failure = issues[0] if isinstance(issues, list) else str(issues)
             elif ai_data.get("diagnosis"):
-                 # Sometimes diagnosis text is long, just take a snippet or "AI Detected Anomaly"
                  failure = "Critical Anomaly Detected"
 
+            # ✅ MAP TRANSCRIPT (The New Feature!)
+            if ai_data.get("voice_transcript"):
+                transcript = ai_data.get("voice_transcript")
+
             # Update Action & Scheduled Date
-            # This is what puts the green card on the calendar!
             if ai_data.get("booking_id") or ai_data.get("scheduled_date"):
                 action = "Service Booked"
-                s_date = ai_data.get("scheduled_date")  # e.g. "2025-12-17 10:00"
+                s_date = ai_data.get("scheduled_date") 
             elif prob > 80:
                 action = "Critical Alert"
 
@@ -129,7 +140,8 @@ async def get_fleet_status():
             predictedFailure=failure,
             probability=prob,
             action=action,
-            scheduled_date=s_date 
+            scheduled_date=s_date,
+            voice_transcript=transcript # <--- Sending the chat to frontend
         ))
     
     return summary_list
@@ -144,7 +156,6 @@ async def get_agent_activity():
     if not os.path.exists(LOG_DIR):
         return []
 
-    # Loop through all files
     for filename in os.listdir(LOG_DIR):
         if filename.startswith("run_log_") and filename.endswith(".json"):
             vehicle_id = filename.replace("run_log_", "").replace(".json", "")
@@ -177,7 +188,18 @@ async def get_agent_activity():
                             type="alert" if risk_score > 80 else "warning"
                         ))
                     
-                    # 3. Scheduler Agent Log
+                    # 3. Voice Agent Log (NEW)
+                    if data.get("voice_transcript"):
+                         activities.append(ActivityLog(
+                            id=f"{vehicle_id}-voice",
+                            time="Just now",
+                            agent="Voice Bot",
+                            vehicle_id=vehicle_id,
+                            message="Outbound call completed. Appointment negotiated.",
+                            type="info"
+                        ))
+
+                    # 4. Scheduler Agent Log
                     if data.get("booking_id"):
                          activities.append(ActivityLog(
                             id=f"{vehicle_id}-book",
