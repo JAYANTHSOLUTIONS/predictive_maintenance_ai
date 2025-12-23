@@ -1,0 +1,11 @@
+{
+    "vehicle_id": "V-102",
+    "risk_score": 0,
+    "detected_issues": [],
+    "diagnosis": "Vehicle is healthy. No issues detected.",
+    "customer_decision": "BOOKED",
+    "booking_id": "BK-1766481049",
+    "scheduled_date": "2025-12-25 09:00",
+    "manufacturing_recommendations": "No critical design flaws detected.",
+    "timestamp": "Just now"
+}

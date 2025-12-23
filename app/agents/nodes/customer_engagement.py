@@ -5,14 +5,13 @@ from langchain_openai import ChatOpenAI
 from app.agents.state import AgentState
 
 # --- 1. LOAD ENVIRONMENT VARIABLES ---
-load_dotenv() # This reads the .env file
+load_dotenv() 
 
 # --- 2. FETCH KEY FROM ENV ---
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 if not groq_api_key:
-    # Stop the server or warn if the key is missing
-    raise ValueError("❌ ERROR: GROQ_API_KEY is missing from .env file!")
+    print("❌ ERROR: GROQ_API_KEY is missing from .env file!")
 
 # --- 3. SETUP GROQ LLM ---
 llm = ChatOpenAI(
@@ -22,10 +21,9 @@ llm = ChatOpenAI(
 )
 
 def customer_node(state: AgentState) -> AgentState:
-    print("🗣️ [Customer] Drafting notification...")
+    print(f"🗣️ [Customer] Drafting notification for {state.get('vehicle_id')}...")
     
     # Get details from the graph state
-    # Use .get() with defaults to avoid crashes if metadata is missing
     owner = state.get("vehicle_metadata", {}).get("owner", "Customer")
     model = state.get("vehicle_metadata", {}).get("model", "Vehicle")
     diagnosis = state.get("diagnosis_report", "Maintenance Required")
@@ -49,11 +47,10 @@ def customer_node(state: AgentState) -> AgentState:
         state["customer_script"] = response.content
     except Exception as e:
         print(f"❌ Customer Agent LLM Error: {e}")
-        # Fallback to prevent crash
+        # Fallback
         state["customer_script"] = f"Urgent: Your {model} requires service. Please contact us to book an appointment."
 
     # Simulating the customer saying "YES" because it's Critical
-    # In a real app, this would be a separate input node/wait state.
     print(f"📞 [Customer] Message sent to {owner}. Waiting for reply...")
     state["customer_decision"] = "BOOKED" 
     

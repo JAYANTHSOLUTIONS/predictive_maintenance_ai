@@ -12,6 +12,10 @@ load_dotenv()
 router = APIRouter()
 
 # --- 1. DATA MODELS ---
+class VoiceLogEntry(BaseModel):
+    role: str
+    content: str
+
 class VehicleSummary(BaseModel):
     vin: str
     model: str
@@ -21,7 +25,8 @@ class VehicleSummary(BaseModel):
     probability: int
     action: str
     scheduled_date: Optional[str] = None
-    voice_transcript: Optional[List[Dict[str, Any]]] = None # <--- NEW FIELD FOR VOICE LOGS
+    # ✅ UPDATED: Strict typing for the new voice logs
+    voice_transcript: Optional[List[VoiceLogEntry]] = None 
 
 class ActivityLog(BaseModel):
     id: str
@@ -36,7 +41,7 @@ class ActivityLog(BaseModel):
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data_samples")
 
-# ✅ Fetch from ENV or use Default
+# Fetch from ENV or use Default
 LOG_DIR = os.getenv("DATA_SAMPLES_DIR", DEFAULT_DATA_DIR)
 DATA_FILE = os.path.join(LOG_DIR, "collected_data.json")
 
@@ -120,9 +125,14 @@ async def get_fleet_status():
             elif ai_data.get("diagnosis"):
                  failure = "Critical Anomaly Detected"
 
-            # ✅ MAP TRANSCRIPT (The New Feature!)
-            if ai_data.get("voice_transcript"):
-                transcript = ai_data.get("voice_transcript")
+            # ✅ MAP TRANSCRIPT: Ensure it matches the Pydantic Model
+            raw_transcript = ai_data.get("voice_transcript")
+            if raw_transcript and isinstance(raw_transcript, list):
+                # Simple validation to ensure 'role' and 'content' keys exist
+                transcript = [
+                    {"role": t.get("role", "assistant"), "content": t.get("content", "")} 
+                    for t in raw_transcript
+                ]
 
             # Update Action & Scheduled Date
             if ai_data.get("booking_id") or ai_data.get("scheduled_date"):
@@ -141,7 +151,7 @@ async def get_fleet_status():
             probability=prob,
             action=action,
             scheduled_date=s_date,
-            voice_transcript=transcript # <--- Sending the chat to frontend
+            voice_transcript=transcript 
         ))
     
     return summary_list
@@ -156,61 +166,67 @@ async def get_agent_activity():
     if not os.path.exists(LOG_DIR):
         return []
 
-    for filename in os.listdir(LOG_DIR):
-        if filename.startswith("run_log_") and filename.endswith(".json"):
-            vehicle_id = filename.replace("run_log_", "").replace(".json", "")
-            filepath = os.path.join(LOG_DIR, filename)
-            
-            try:
-                with open(filepath, "r") as f:
-                    data = json.load(f)
-                    
-                    # 1. Diagnosis Agent Log
-                    if data.get("diagnosis"):
+    # Get all logs and sort by modification time (newest first)
+    log_files = glob.glob(os.path.join(LOG_DIR, "run_log_*.json"))
+    log_files.sort(key=os.path.getmtime, reverse=True)
+
+    for filepath in log_files:
+        filename = os.path.basename(filepath)
+        vehicle_id = filename.replace("run_log_", "").replace(".json", "")
+        
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+                
+                # 1. Diagnosis Agent Log
+                if data.get("diagnosis"):
+                    # Only show if there's a real issue
+                    issues = data.get('detected_issues', [])
+                    if issues and "None" not in issues:
                         activities.append(ActivityLog(
                             id=f"{vehicle_id}-diag",
                             time="Just now", 
                             agent="Diagnosis Agent",
                             vehicle_id=vehicle_id,
-                            message=f"Identified issue: {data.get('detected_issues', ['Unknown'])[0]}",
+                            message=f"Identified issue: {issues[0]}",
                             type="info"
                         ))
 
-                    # 2. Risk Agent Log
-                    risk_score = data.get("risk_score", 0)
-                    if risk_score > 50:
-                         activities.append(ActivityLog(
-                            id=f"{vehicle_id}-risk",
-                            time="Just now",
-                            agent="Risk Guardian",
-                            vehicle_id=vehicle_id,
-                            message=f"Escalated high risk profile ({risk_score}%)",
-                            type="alert" if risk_score > 80 else "warning"
-                        ))
-                    
-                    # 3. Voice Agent Log (NEW)
-                    if data.get("voice_transcript"):
-                         activities.append(ActivityLog(
-                            id=f"{vehicle_id}-voice",
-                            time="Just now",
-                            agent="Voice Bot",
-                            vehicle_id=vehicle_id,
-                            message="Outbound call completed. Appointment negotiated.",
-                            type="info"
-                        ))
+                # 2. Risk Agent Log
+                risk_score = data.get("risk_score", 0)
+                if risk_score > 50:
+                     activities.append(ActivityLog(
+                        id=f"{vehicle_id}-risk",
+                        time="Just now",
+                        agent="Risk Guardian",
+                        vehicle_id=vehicle_id,
+                        message=f"Escalated high risk profile ({risk_score}%)",
+                        type="alert" if risk_score > 80 else "warning"
+                    ))
+                
+                # 3. Voice Agent Log (NEW)
+                if data.get("voice_transcript"):
+                     activities.append(ActivityLog(
+                        id=f"{vehicle_id}-voice",
+                        time="Just now",
+                        agent="Voice Bot",
+                        vehicle_id=vehicle_id,
+                        message="Outbound call completed. Appointment negotiated.",
+                        type="info"
+                    ))
 
-                    # 4. Scheduler Agent Log
-                    if data.get("booking_id"):
-                         activities.append(ActivityLog(
-                            id=f"{vehicle_id}-book",
-                            time="Scheduled",
-                            agent="Scheduling Bot",
-                            vehicle_id=vehicle_id,
-                            message=f"Confirmed service appointment {data.get('booking_id')}",
-                            type="info"
-                        ))
+                # 4. Scheduler Agent Log
+                if data.get("booking_id"):
+                     activities.append(ActivityLog(
+                        id=f"{vehicle_id}-book",
+                        time="Scheduled",
+                        agent="Scheduling Bot",
+                        vehicle_id=vehicle_id,
+                        message=f"Confirmed service appointment {data.get('booking_id')}",
+                        type="info"
+                    ))
 
-            except Exception:
-                continue
+        except Exception:
+            continue
 
     return activities

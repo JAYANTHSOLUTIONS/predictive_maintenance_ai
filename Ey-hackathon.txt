@@ -3,3 +3,5 @@ wokwi connection : python app/data/iot_listener.py ,pip install paho-mqtt
 run python server : python -m app.main
 frontend: cd frontend,npm run dev
 venv : venv\Scripts\activate
+
+python fleet_simulator.py

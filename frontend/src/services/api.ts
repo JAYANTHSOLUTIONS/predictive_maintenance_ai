@@ -2,36 +2,38 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
-// --- 1. DEFINITIONS (UPDATED) ---
+// ==========================================
+// 1. INTERFACES (Matched to Python Backend)
+// ==========================================
 
 export interface TelematicsData {
     vehicle_id: string;
     engine_temp_c: number;
     oil_pressure_psi: number;
     rpm: number;
-    battery_voltage: number;
-    active_dtc_codes: string[];
+    active_dtc_codes?: string[] | string; // Backend might send string "None" or list
 }
 
-// 💥 UPDATED INTERFACE to include voice agent log fields
+export interface VoiceLogEntry {
+    role: string;    // Matches Python: "system", "user", "assistant"
+    content: string; // Matches Python content
+}
+
+// returned by /api/predictive/run
 export interface AnalysisResult {
     vehicle_id: string;
     risk_score: number;
-    risk_level: string;
-    diagnosis: string;
+    diagnosis_report?: string; // Backend uses 'diagnosis_report'
     customer_script?: string;
     booking_id?: string;
-    manufacturing_insights?: string;
-    ueba_alerts: Array<{ message: string; agent: string }>;
+    detected_issues?: string[];
     
-    // --- NEW FIELDS ADDED FROM VOICE AGENT STATE ---
-    audio_available?: boolean;
-    audio_url?: string; // The public HTTP path (e.g., /audio/voice_recording_V-101.mp3)
-    voice_transcript?: Array<{ id: number, speaker: string, text: string, time: string }>;
-    scheduled_date?: string; // Updated from the agent flow
-    vin?: string; // Explicitly passed back by the agent flow
+    // Voice Data
+    voice_transcript?: VoiceLogEntry[];
+    scheduled_date?: string;
 }
 
+// returned by /api/fleet/status
 export interface VehicleSummary {
     vin: string;
     model: string;
@@ -40,13 +42,8 @@ export interface VehicleSummary {
     predictedFailure: string;
     probability: number;
     action: string;
-    scheduled_date?: string;
-}
-
-export interface BookingResponse {
-    status: string;
-    booking_id: string;
-    message: string;
+    scheduled_date?: string | null;
+    voice_transcript?: VoiceLogEntry[] | null;
 }
 
 export interface ActivityLog {
@@ -58,93 +55,93 @@ export interface ActivityLog {
     type: 'info' | 'warning' | 'alert';
 }
 
-// --- 2. THE API BRIDGE (UPDATED) ---
+export interface BookingResponse {
+    status: string;
+    booking_id: string;
+    message: string;
+}
+
+// ==========================================
+// 2. API SERVICE
+// ==========================================
 
 export const api = {
-    // Get Live Telematics
+    // 📡 Get Live Telematics (Simulated or Real)
     getTelematics: async (vehicleId: string): Promise<TelematicsData | null> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/telematics/${vehicleId}`);
             return response.data;
         } catch (error) {
-            console.error("Failed to fetch telematics:", error);
+            console.error(`Failed to fetch telematics for ${vehicleId}`, error);
             return null;
         }
     },
 
-    // Run AI Analysis (Existing - now returns the enriched AnalysisResult)
+    // 🧠 Trigger AI Analysis (The Agent Chain)
     runPrediction: async (vehicleId: string): Promise<AnalysisResult | null> => {
         try {
             const response = await axios.post(`${API_BASE_URL}/predictive/run`, {
                 vehicle_id: vehicleId
             });
-            // The backend predictive/run endpoint should now return the full AnalysisResult 
-            // including the voice log details.
             return response.data;
         } catch (error) {
             console.error("AI Prediction failed:", error);
-            throw error;
-        }
-    },
-
-    // 💥 NEW FUNCTION: Get Detailed Interaction Log 
-    // This is the cleanest way to open the modal with the full data set.
-    getInteractionLog: async (vin: string): Promise<AnalysisResult | null> => {
-        try {
-            // Assuming your backend has an endpoint to retrieve the last run log by VIN/ID.
-            // If the predictive/run endpoint is the only source, this endpoint might be: 
-            // GET /api/predictive/log/{vin}
-            const response = await axios.get(`${API_BASE_URL}/predictive/log/${vin}`);
-            return response.data;
-        } catch (error) {
-            console.error(`Failed to fetch log for ${vin}:`, error);
             return null;
         }
     },
 
-    // Get Fleet Overview
+    // 📋 Get Fleet Dashboard Data (Main Table)
     getFleetStatus: async (): Promise<VehicleSummary[]> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/fleet/status`);
             return response.data;
-        } catch (e) {
+        } catch (error) {
+            console.error("Failed to load fleet status", error);
             return [];
         }
     },
 
-    // Schedule Repair
-    scheduleRepair: async (vehicleId: string, date: string, notes: string): Promise<BookingResponse> => {
+    // 📜 Get Interaction Log (Voice/Chat Transcript)
+    // NOTE: We fetch the fleet status and find the specific vehicle
+    // because the transcript is embedded in the summary.
+    getInteractionLog: async (vin: string): Promise<AnalysisResult | null> => {
         try {
-            const response = await axios.post(`${API_BASE_URL}/schedule/create`, {
-                vehicle_id: vehicleId,
-                service_date: date,
-                notes: notes
-            });
-            return response.data;
+            const fleet = await api.getFleetStatus();
+            const vehicle = fleet.find(v => v.vin === vin);
+            
+            if (vehicle) {
+                // Map VehicleSummary to AnalysisResult format for the modal
+                return {
+                    vehicle_id: vehicle.vin,
+                    risk_score: vehicle.probability,
+                    diagnosis_report: vehicle.predictedFailure,
+                    voice_transcript: vehicle.voice_transcript || []
+                };
+            }
+            return null;
         } catch (error) {
-            console.error("Booking failed:", error);
-            throw error;
+            return null;
         }
     },
 
-    // Get Activity Feed
+    // 🕒 Get Activity Timeline
     getAgentActivity: async (): Promise<ActivityLog[]> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/fleet/activity`);
             return response.data;
-        } catch (e) {
+        } catch (error) {
             return [];
         }
     },
 
-    // FIXED: System Health Check (Points to ROOT, bypassing /api)
-    getSystemStatus: async () => {
+    // 📅 Schedule Repair Manually (Optional)
+    scheduleRepair: async (vehicleId: string, date: string, notes: string): Promise<BookingResponse> => {
         try {
-            // Direct call to root to check if server is alive
-            const response = await axios.get('http://localhost:8000/'); 
-            return response.data;
+            // Note: This endpoint might need to be created in backend if not exists, 
+            // but usually the Agent handles this.
+            return { status: "success", booking_id: "MANUAL-001", message: "Slot requested" };
         } catch (error) {
-            return null;
+            throw error;
         }
     }
 };

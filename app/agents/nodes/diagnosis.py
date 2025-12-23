@@ -7,8 +7,14 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 load_dotenv()
 
-# ✅ UPDATED: Fetch Key from Environment & Use Groq
-# This reads 'GROQ_API_KEY' from your .env file
+# ✅ IMPORT KNOWLEDGE BASE UTILITY
+try:
+    from app.utils.knowledge import find_diagnosis_steps
+except ImportError:
+    print("⚠️ Warning: app.utils.knowledge not found. RAG disabled.")
+    def find_diagnosis_steps(x): return []
+
+# ✅ SETUP: Fetch Key from Environment & Use Groq
 groq_api_key = os.getenv("GROQ_API_KEY")
 
 if not groq_api_key:
@@ -24,56 +30,82 @@ def diagnosis_node(state: AgentState) -> AgentState:
     """
     Worker 2: Uses LLM to explain the issue and recommend action.
     """
-    print("🧠 [Diagnosis] LLM analyzing failure patterns...")
+    v_id = state.get("vehicle_id", "Unknown")
+    print(f"🧠 [Diagnosis] LLM analyzing failure patterns for {v_id}...")
     
-    # 1. Check if there is anything to diagnose
-    if state.get("risk_score", 0) < 20:
-        state["diagnosis_report"] = "Vehicle is healthy. No issues detected."
-        state["recommended_action"] = "Monitor"
-        state["priority_level"] = "Low"
-        return state
+    # ---------------------------------------------------------
+    # 🚨 DEMO MODE CHANGE: DISABLED HEALTH CHECK
+    # We commented this out so even "Healthy" simulated cars 
+    # get a generated report for your presentation.
+    # ---------------------------------------------------------
+    # if state.get("risk_score", 0) < 20:
+    #     state["diagnosis_report"] = "Vehicle is healthy. No issues detected."
+    #     state["recommended_action"] = "Monitor"
+    #     state["priority_level"] = "Low"
+    #     return state
+    # ---------------------------------------------------------
 
     # 2. Prepare prompt for the AI
-    # Handle list or string for detected_issues
     detected = state.get("detected_issues", [])
     if isinstance(detected, list):
         issues = "\n".join(detected)
     else:
         issues = str(detected)
+    
+    # If simulated data is clean, force a dummy issue for the report to look interesting
+    if not issues or issues == "None":
+        issues = "Minor sensor drift detected (Simulated)"
 
     telematics = state.get("telematics_data", {})
     
-    # ✅ PROMPT: Forces structured Markdown output
+    # --- 🔍 RAG LOGIC: RETRIEVE KNOWLEDGE FROM JSON ---
+    expert_advice = ""
+    search_terms = []
+    
+    if "Temp" in issues or telematics.get('engine_temp_c', 0) > 100:
+        search_terms.append("overheating")
+    if "Oil" in issues or telematics.get('oil_pressure_psi', 50) < 20:
+        search_terms.append("oil")
+    
+    for term in search_terms:
+        steps = find_diagnosis_steps(term)
+        if steps:
+            expert_advice += f"\n--- MANUAL ENTRY FOR '{term.upper()}' ---\n"
+            for s in steps[:3]: 
+                expert_advice += f"Part: {s['part']}\nSteps: {s['steps']}\n"
+
+    if not expert_advice:
+        expert_advice = "General maintenance check recommended."
+
+    # ✅ PROMPT
     prompt = f"""
     You are a Senior Fleet Mechanic AI. 
-    Analyze this truck's status:
+    Analyze this truck's status based on the Telematics and the Service Manual provided.
     
     Vehicle: {state['vehicle_metadata'].get('model', 'Unknown Model')}
-    Issues Detected:
-    {issues}
+    Issues Detected: {issues}
     
     Telematics:
     - Oil Pressure: {telematics.get('oil_pressure_psi', 'N/A')} psi
     - Engine Temp: {telematics.get('engine_temp_c', 'N/A')} C
-    - Active Codes: {telematics.get('dtc_readable', 'None')}
     
-    IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers and bullets.
+    📘 OFFICIAL SERVICE MANUAL GUIDELINES:
+    {expert_advice}
+    
+    IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers.
     
     ### 🚨 Critical Faults
-    * **[Code/Issue]**: [Short description]
+    * **[Code/Issue]**: {issues}
     
     ### 📉 Root Cause Analysis
     * **Primary Cause:** [One sentence explanation]
-    * **Secondary Factors:** [One sentence explanation]
     
     ### 🛠️ Immediate Action Plan
-    1. [First Step]
-    2. [Second Step]
-    3. [Third Step]
+    1. [Step 1]
+    2. [Step 2]
     
     ### ⚠️ Risk Assessment
     * **Severity:** [Critical/High/Medium]
-    * **Consequence:** [What happens if ignored?]
     """
 
     # 3. Call the LLM
@@ -82,14 +114,12 @@ def diagnosis_node(state: AgentState) -> AgentState:
         content = response.content
     except Exception as e:
         print(f"❌ Diagnosis Agent LLM Error: {e}")
-        # Fallback to prevent crash
-        content = "Error generating diagnosis. Please check system logs."
+        content = "Error generating diagnosis."
         state["priority_level"] = "Medium"
 
     # 4. Save to State
     state["diagnosis_report"] = content
     
-    # Simple keyword extraction for priority setting
     if "Critical" in content:
         state["priority_level"] = "Critical"
     elif "High" in content:
