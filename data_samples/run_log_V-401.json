@@ -1,0 +1,20 @@
+{
+    "vehicle_id": "V-401",
+    "risk_score": 0,
+    "detected_issues": [],
+    "diagnosis": "### \ud83d\udea8 Critical Faults\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The primary cause of the issue is likely a minor calibration problem with one of the vehicle's sensors, which is causing a slight deviation in the sensor readings.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic scan to identify the specific sensor causing the drift and verify the issue.\n2. Perform a general maintenance check as recommended by the official service manual guidelines to ensure all systems are functioning properly.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium \nNote: The vehicle's oil pressure (35 psi) and engine temperature (85 C) are within acceptable ranges, and the issue is currently simulated as a minor sensor drift, which does not immediately indicate a critical fault. However, it's essential to address the issue to prevent potential future problems.",
+    "telematics_data": {
+        "engine_temp_c": 115,
+        "oil_pressure_psi": 9.0,
+        "rpm": 785,
+        "battery_voltage": 11.8,
+        "dtc_readable": "P0217"
+    },
+    "customer_decision": "BOOKED",
+    "booking_id": "BK-1766556125",
+    "scheduled_date": "2025-12-25 13:00",
+    "voice_transcript": null,
+    "manufacturing_recommendations": "### \ud83c\udfed Design Flaw Analysis\n* **Vulnerability:** The sensor calibration process is vulnerable to minor drifts, which can cause inaccurate readings and potentially lead to more significant issues if not addressed.\n* **Root Cause:** The root cause of the issue is likely due to a lack of robust calibration procedures and insufficient sensor validation during the manufacturing process.\n\n### \ud83d\udd27 Engineering Fix (CAPA)\n* **Hardware Upgrade:** Upgrade the sensor hardware to include more precise and robust components, such as higher-accuracy analog-to-digital converters and improved sensor materials.\n* **Sensor Logic:** Implement a more advanced sensor fusion algorithm that cross-validates data from multiple sensors to detect and correct for minor drifts and other anomalies.\n* **Fail-Safe Mechanism:** Develop an automatic sensor recalibration process that runs periodically to ensure sensor accuracy and implements a warning system to alert the driver if a sensor fault is detected.\n\n### \ud83e\uddea Validation Plan\n* **Testing:** Conduct a combination of hardware-in-the-loop (HIL) simulation testing and real-world vehicle testing to validate the effectiveness of the proposed fixes, including:\n\t+ HIL simulation for 1000 hours to test the sensor fusion algorithm and automatic recalibration process.\n\t+ Real-world vehicle testing on a fleet of 100 vehicles for 6 months to monitor sensor performance and collect data on the effectiveness of the fixes.\n* **Expected Result:** Reduce the occurrence of minor sensor drifts by 90% and prevent potential future problems by implementing a more robust sensor calibration process and advanced sensor fusion algorithm, resulting in improved overall vehicle reliability and customer satisfaction.",
+    "ueba_alerts": [],
+    "timestamp": "Just now"
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, AlertTriangle, CheckCircle, Activity, Thermometer, Droplets, Gauge, Download } from 'lucide-react';
+import { X, Play, AlertTriangle, CheckCircle, Activity, Thermometer, Droplets, Gauge, Download, Zap } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -56,6 +56,7 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             engineTemp: data.engine_temp_c,
             oilPressure: data.oil_pressure_psi,
+            battery: data.battery_voltage || 24.0, // ✅ ADDED BATTERY
             rpm: data.rpm
           };
           // Keep last 15 points for a smooth graph
@@ -83,7 +84,7 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
     };
   }, [vehicleId, analysis, loading, handleRunAI]);
 
-  // --- 4. EXPORT FUNCTION (UPDATED) ---
+  // --- 4. EXPORT FUNCTION ---
   const handleExport = () => {
     if (!analysis) return;
 
@@ -103,12 +104,10 @@ MANUFACTURING INSIGHTS:
 ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
     `;
 
-    // Create file and download
     const blob = new Blob([fileContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    // Filename: VehicleID_Date.txt
     link.download = `${vehicleId}_Report_${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(link);
     link.click();
@@ -144,8 +143,6 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
         </div>
 
         <div className="flex items-center gap-2">
-            {/* --- EXPORT BUTTON --- */}
-            {/* Disabled if no analysis. Visible on all screens. */}
             <Button 
                 variant="outline" 
                 size="sm" 
@@ -166,12 +163,13 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
 
       <div className="p-6 space-y-6 flex-1">
         
-        {/* --- 1. LIVE SENSOR GRID --- */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* --- 1. LIVE SENSOR GRID (Updated Grid for 4 Items) --- */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* TEMP */}
             <Card className={`border-l-4 ${telematics?.engine_temp_c && telematics.engine_temp_c > 98 ? 'border-l-red-500 bg-red-50/50' : 'border-l-slate-300'}`}>
                 <CardContent className="p-4 flex flex-col items-center justify-center">
                     <div className="flex items-center gap-2 text-slate-500 mb-1">
-                        <Thermometer className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Engine Temp</span>
+                        <Thermometer className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Temp</span>
                     </div>
                     <span className={`text-2xl font-bold ${telematics?.engine_temp_c && telematics.engine_temp_c > 98 ? 'text-red-600' : 'text-slate-900'}`}>
                         {telematics?.engine_temp_c ?? '--'}°C
@@ -179,10 +177,11 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                 </CardContent>
             </Card>
 
+            {/* OIL */}
             <Card className={`border-l-4 ${telematics?.oil_pressure_psi && telematics.oil_pressure_psi < 20 ? 'border-l-amber-500 bg-amber-50/50' : 'border-l-slate-300'}`}>
                 <CardContent className="p-4 flex flex-col items-center justify-center">
                     <div className="flex items-center gap-2 text-slate-500 mb-1">
-                        <Droplets className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Oil Pressure</span>
+                        <Droplets className="w-4 h-4" /> <span className="text-xs font-semibold uppercase">Oil</span>
                     </div>
                     <span className={`text-2xl font-bold ${telematics?.oil_pressure_psi && telematics.oil_pressure_psi < 20 ? 'text-amber-600' : 'text-slate-900'}`}>
                         {telematics?.oil_pressure_psi ?? '--'} PSI
@@ -190,6 +189,19 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                 </CardContent>
             </Card>
 
+            {/* BATTERY (NEW) */}
+            <Card className="border-l-4 border-l-yellow-400">
+                <CardContent className="p-4 flex flex-col items-center justify-center">
+                    <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" /> <span className="text-xs font-semibold uppercase">Battery</span>
+                    </div>
+                    <span className="text-2xl font-bold text-slate-900">
+                        {telematics?.battery_voltage ?? '--'}V
+                    </span>
+                </CardContent>
+            </Card>
+
+            {/* RPM */}
             <Card className="border-l-4 border-l-blue-500">
                 <CardContent className="p-4 flex flex-col items-center justify-center">
                     <div className="flex items-center gap-2 text-slate-500 mb-1">
@@ -202,7 +214,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
             </Card>
         </div>
 
-        {/* --- 2. MANUAL TRIGGER (Visible if no analysis yet) --- */}
+        {/* --- 2. MANUAL TRIGGER --- */}
         {!analysis && (
             <Card className="bg-slate-50 border-dashed border-2 border-slate-300 shadow-none">
                 <CardContent className="py-8 flex flex-col items-center text-center">
@@ -219,7 +231,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
             </Card>
         )}
 
-        {/* --- 3. AI REPORT (Markdown Enabled) --- */}
+        {/* --- 3. AI REPORT --- */}
         {analysis && (
           <Card className={`border shadow-sm overflow-hidden ${getRiskColor(analysis.risk_level)}`}>
             <CardHeader className="border-b border-black/5 bg-black/5 pb-4">
@@ -250,18 +262,20 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                           p: ({children}) => <p className="mb-3">{children}</p>
                       }}
                   >
-                      {analysis.diagnosis}
+                      {analysis.diagnosis || "No diagnosis details."}
                   </ReactMarkdown>
                 </div>
               </div>
               
-              {/* Security Alert */}
-              {analysis.ueba_alerts.length > 0 && (
+              {/* Security Alert (Fixed TS Errors) */}
+              {analysis.ueba_alerts && analysis.ueba_alerts.length > 0 && (
                   <div className="bg-red-50 border border-red-200 p-4 rounded-md flex gap-3 items-start">
                       <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                       <div>
                           <h5 className="font-bold text-red-900 text-sm">Security Alert (UEBA)</h5>
-                          <p className="text-red-700 text-sm mt-1">{analysis.ueba_alerts[0].message}</p>
+                          <p className="text-red-700 text-sm mt-1">
+                              {analysis.ueba_alerts[0]?.message}
+                          </p>
                       </div>
                   </div>
               )}
@@ -291,7 +305,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
           </Card>
         )}
 
-        {/* --- 4. REAL-TIME CHART --- */}
+        {/* --- 4. REAL-TIME CHART (With Battery) --- */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Live Telemetry Stream</CardTitle>
@@ -302,14 +316,22 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="time" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                    <YAxis tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
+                    
+                    {/* Left Axis for Temp/Pressure */}
+                    <YAxis yAxisId="left" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
+                    
+                    {/* Right Axis for Battery Voltage (Small numbers) */}
+                    <YAxis yAxisId="right" orientation="right" domain={[20, 30]} tick={{fontSize: 12, fill: '#eab308'}} tickLine={false} axisLine={false} />
+
                     <Tooltip 
                         contentStyle={{backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} 
                         itemStyle={{fontSize: '12px', fontWeight: 'bold'}}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="engineTemp" stroke="#ef4444" name="Temp (°C)" strokeWidth={3} dot={false} activeDot={{r: 6}} />
-                    <Line type="monotone" dataKey="oilPressure" stroke="#f59e0b" name="Oil (PSI)" strokeWidth={3} dot={false} activeDot={{r: 6}} />
+                    <Line yAxisId="left" type="monotone" dataKey="engineTemp" stroke="#ef4444" name="Temp (°C)" strokeWidth={2} dot={false} />
+                    <Line yAxisId="left" type="monotone" dataKey="oilPressure" stroke="#f59e0b" name="Oil (PSI)" strokeWidth={2} dot={false} />
+                    {/* Battery Line */}
+                    <Line yAxisId="right" type="monotone" dataKey="battery" stroke="#eab308" name="Batt (V)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                   </LineChart>
                 </ResponsiveContainer>
             </div>

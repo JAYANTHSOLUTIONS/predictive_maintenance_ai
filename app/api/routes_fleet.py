@@ -25,8 +25,11 @@ class VehicleSummary(BaseModel):
     probability: int
     action: str
     scheduled_date: Optional[str] = None
-    # ✅ UPDATED: Strict typing for the new voice logs
-    voice_transcript: Optional[List[VoiceLogEntry]] = None 
+    voice_transcript: Optional[List[VoiceLogEntry]] = None
+    # ✅ NEW FIELDS (Crucial for your new Table)
+    engine_temp: Optional[int] = 0
+    oil_pressure: Optional[float] = 0.0
+    battery_voltage: Optional[float] = 0.0
 
 class ActivityLog(BaseModel):
     id: str
@@ -37,7 +40,7 @@ class ActivityLog(BaseModel):
     type: str   # "info", "warning", "alert"
 
 # --- 2. FILE PATHS ---
-# We point to the same folder where 'master.py' saves the logs
+# Adjust path to find the root folder from app/api/
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data_samples")
 
@@ -47,9 +50,7 @@ DATA_FILE = os.path.join(LOG_DIR, "collected_data.json")
 
 # --- 3. HELPER: MOCK GEOCODING ---
 def resolve_location(gps_data):
-    """
-    Maps lat/lon to a city name for the table display.
-    """
+    """Maps lat/lon to a city name for the table display."""
     if not gps_data:
         return "Unknown"
     
@@ -69,9 +70,10 @@ def resolve_location(gps_data):
 @router.get("/status", response_model=List[VehicleSummary])
 async def get_fleet_status():
     """
-    Returns the fleet list merged with AI Voice Logs and Scheduling data.
+    Returns the fleet list merged with AI Voice Logs AND Live Telemetry.
     """
-    # A. Load Base Fleet
+    # A. Load Base Fleet (Static Data)
+    vehicles = {}
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, "r") as f:
@@ -79,12 +81,10 @@ async def get_fleet_status():
                 vehicles = data.get("vehicles", {})
         except Exception:
             vehicles = {}
-    else:
-        vehicles = {} 
 
     summary_list = []
 
-    # B. SCAN AI LOGS
+    # B. SCAN AI LOGS (Dynamic Data from Simulator)
     ai_updates = {}
     if os.path.exists(LOG_DIR):
         log_pattern = os.path.join(LOG_DIR, "run_log_*.json")
@@ -107,7 +107,12 @@ async def get_fleet_status():
         prob = 0
         action = "Monitoring"
         s_date = None
-        transcript = None # Default empty
+        transcript = None
+        
+        # ✅ NEW DEFAULTS FOR TELEMETRY
+        temp = 0
+        oil = 0.0
+        batt = 24.0 # Default for trucks
         
         # 1. Get Real Location
         real_location = resolve_location(v_data.get("telematics", {}).get("gps_location"))
@@ -125,19 +130,23 @@ async def get_fleet_status():
             elif ai_data.get("diagnosis"):
                  failure = "Critical Anomaly Detected"
 
-            # ✅ MAP TRANSCRIPT: Ensure it matches the Pydantic Model
+            # ✅ EXTRACT LIVE TELEMETRY (This is what you were missing!)
+            tele = ai_data.get("telematics_data", {})
+            temp = tele.get("engine_temp_c", 0)
+            oil = tele.get("oil_pressure_psi", 0.0)
+            batt = tele.get("battery_voltage", 24.5)
+
+            # Map Transcript
             raw_transcript = ai_data.get("voice_transcript")
             if raw_transcript and isinstance(raw_transcript, list):
-                # Simple validation to ensure 'role' and 'content' keys exist
                 transcript = [
                     {"role": t.get("role", "assistant"), "content": t.get("content", "")} 
                     for t in raw_transcript
                 ]
 
-            # Update Action & Scheduled Date
-            if ai_data.get("booking_id") or ai_data.get("scheduled_date"):
+            # Update Action
+            if ai_data.get("booking_id"):
                 action = "Service Booked"
-                s_date = ai_data.get("scheduled_date") 
             elif prob > 80:
                 action = "Critical Alert"
 
@@ -151,7 +160,11 @@ async def get_fleet_status():
             probability=prob,
             action=action,
             scheduled_date=s_date,
-            voice_transcript=transcript 
+            voice_transcript=transcript,
+            # ✅ PASS NEW DATA
+            engine_temp=temp,
+            oil_pressure=oil,
+            battery_voltage=batt
         ))
     
     return summary_list
@@ -180,7 +193,6 @@ async def get_agent_activity():
                 
                 # 1. Diagnosis Agent Log
                 if data.get("diagnosis"):
-                    # Only show if there's a real issue
                     issues = data.get('detected_issues', [])
                     if issues and "None" not in issues:
                         activities.append(ActivityLog(
@@ -204,7 +216,7 @@ async def get_agent_activity():
                         type="alert" if risk_score > 80 else "warning"
                     ))
                 
-                # 3. Voice Agent Log (NEW)
+                # 3. Voice Agent Log
                 if data.get("voice_transcript"):
                      activities.append(ActivityLog(
                         id=f"{vehicle_id}-voice",

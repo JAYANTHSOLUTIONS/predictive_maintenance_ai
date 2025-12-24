@@ -3,7 +3,7 @@ import axios from 'axios';
 const API_BASE_URL = 'http://localhost:8000/api';
 
 // ==========================================
-// 1. INTERFACES (Matched to Python Backend)
+// 1. INTERFACES
 // ==========================================
 
 export interface TelematicsData {
@@ -11,29 +11,33 @@ export interface TelematicsData {
     engine_temp_c: number;
     oil_pressure_psi: number;
     rpm: number;
-    active_dtc_codes?: string[] | string; // Backend might send string "None" or list
+    battery_voltage?: number;
+    active_dtc_codes?: string[] | string;
 }
 
 export interface VoiceLogEntry {
-    role: string;    // Matches Python: "system", "user", "assistant"
-    content: string; // Matches Python content
+    role: string;
+    content: string;
 }
 
-// returned by /api/predictive/run
+// ✅ FIXED: Updated to match VehicleDetailPanel.tsx requirements
 export interface AnalysisResult {
     vehicle_id: string;
     risk_score: number;
-    diagnosis_report?: string; // Backend uses 'diagnosis_report'
+    
+    // These were missing or named differently:
+    risk_level: string;               // Was missing
+    diagnosis: string;                // Was 'diagnosis_report'
+    manufacturing_insights?: string;  // Was missing
+    ueba_alerts?: { message: string }[]; // Was missing
+    
     customer_script?: string;
     booking_id?: string;
     detected_issues?: string[];
-    
-    // Voice Data
     voice_transcript?: VoiceLogEntry[];
     scheduled_date?: string;
 }
 
-// returned by /api/fleet/status
 export interface VehicleSummary {
     vin: string;
     model: string;
@@ -44,6 +48,9 @@ export interface VehicleSummary {
     action: string;
     scheduled_date?: string | null;
     voice_transcript?: VoiceLogEntry[] | null;
+    engine_temp?: number;
+    oil_pressure?: number;
+    battery_voltage?: number;
 }
 
 export interface ActivityLog {
@@ -66,7 +73,6 @@ export interface BookingResponse {
 // ==========================================
 
 export const api = {
-    // 📡 Get Live Telematics (Simulated or Real)
     getTelematics: async (vehicleId: string): Promise<TelematicsData | null> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/telematics/${vehicleId}`);
@@ -77,7 +83,6 @@ export const api = {
         }
     },
 
-    // 🧠 Trigger AI Analysis (The Agent Chain)
     runPrediction: async (vehicleId: string): Promise<AnalysisResult | null> => {
         try {
             const response = await axios.post(`${API_BASE_URL}/predictive/run`, {
@@ -90,7 +95,6 @@ export const api = {
         }
     },
 
-    // 📋 Get Fleet Dashboard Data (Main Table)
     getFleetStatus: async (): Promise<VehicleSummary[]> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/fleet/status`);
@@ -101,20 +105,17 @@ export const api = {
         }
     },
 
-    // 📜 Get Interaction Log (Voice/Chat Transcript)
-    // NOTE: We fetch the fleet status and find the specific vehicle
-    // because the transcript is embedded in the summary.
     getInteractionLog: async (vin: string): Promise<AnalysisResult | null> => {
         try {
             const fleet = await api.getFleetStatus();
             const vehicle = fleet.find(v => v.vin === vin);
-            
             if (vehicle) {
-                // Map VehicleSummary to AnalysisResult format for the modal
+                // Map summary back to analysis format for consistency
                 return {
                     vehicle_id: vehicle.vin,
                     risk_score: vehicle.probability,
-                    diagnosis_report: vehicle.predictedFailure,
+                    risk_level: vehicle.probability > 80 ? 'CRITICAL' : 'MEDIUM', // Mock for summary
+                    diagnosis: vehicle.predictedFailure,
                     voice_transcript: vehicle.voice_transcript || []
                 };
             }
@@ -124,7 +125,6 @@ export const api = {
         }
     },
 
-    // 🕒 Get Activity Timeline
     getAgentActivity: async (): Promise<ActivityLog[]> => {
         try {
             const response = await axios.get(`${API_BASE_URL}/fleet/activity`);
@@ -134,14 +134,7 @@ export const api = {
         }
     },
 
-    // 📅 Schedule Repair Manually (Optional)
     scheduleRepair: async (vehicleId: string, date: string, notes: string): Promise<BookingResponse> => {
-        try {
-            // Note: This endpoint might need to be created in backend if not exists, 
-            // but usually the Agent handles this.
-            return { status: "success", booking_id: "MANUAL-001", message: "Slot requested" };
-        } catch (error) {
-            throw error;
-        }
+        return { status: "success", booking_id: "MANUAL-001", message: "Slot requested" };
     }
 };

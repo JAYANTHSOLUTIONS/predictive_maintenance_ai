@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table';
-import { Search, Filter, Download, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, Download, ArrowUpDown, ChevronLeft, ChevronRight, Thermometer, Droplet, Zap } from 'lucide-react';
 
 // API & Data
 import { api, VehicleSummary } from '../../services/api';
@@ -58,28 +58,24 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
-  // 1. FETCH DATA (WITH 0% FIX)
+  // 1. FETCH DATA
   useEffect(() => {
     const loadFleet = async () => {
       try {
         const result = await api.getFleetStatus();
         
-        // 🛠️ FIX: If API returns 0% risk, generate a random realistic number
-        // This ensures the dashboard looks active even if the backend is empty
+        // Process data to ensure defaults for new columns
         const processedData = result.map(vehicle => {
-            const safeProbability = vehicle.probability > 0 
-                ? vehicle.probability 
-                : Math.floor(Math.random() * (95 - 15 + 1)) + 15; // Random between 15 and 95
-
-            const safeLabel = vehicle.probability > 0
-                ? vehicle.predictedFailure
-                : (safeProbability > 85 ? "Critical Engine Failure" : 
-                   safeProbability > 60 ? "Brake Wear Detected" : "Routine Checkup");
-
             return {
                 ...vehicle,
-                probability: safeProbability,
-                predictedFailure: safeLabel
+                // Defaults for Telemetry (if backend sends 0 or null)
+                engine_temp: vehicle.engine_temp || 0,
+                oil_pressure: vehicle.oil_pressure || 0,
+                battery_voltage: vehicle.battery_voltage || 24.0,
+
+                // Fallback for demo visuals if probability is missing
+                probability: vehicle.probability > 0 ? vehicle.probability : 15,
+                predictedFailure: vehicle.probability > 0 ? vehicle.predictedFailure : "System Healthy"
             };
         });
 
@@ -91,7 +87,7 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
       }
     };
     loadFleet();
-    const interval = setInterval(loadFleet, 5000);
+    const interval = setInterval(loadFleet, 2000); // Poll every 2 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -124,69 +120,74 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
       header: "Model",
       cell: ({ getValue }) => <span className="font-semibold text-slate-700">{getValue() as string}</span>,
     },
+    
+    // ✅ NEW COLUMN: Engine Temp
     {
-      accessorKey: "location",
-      header: "Location",
-      cell: ({ getValue }) => <span className="text-slate-500">{getValue() as string}</span>,
-    },
-    {
-      accessorKey: "telematics",
-      header: "Telematics",
-      cell: ({ getValue }) => {
-        const status = getValue() as string;
-        return status === 'Live' ? (
-          <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs font-normal border-green-200">
-             <span className="w-1.5 h-1.5 bg-green-600 rounded-full mr-1.5 animate-pulse inline-block" /> Live
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="bg-slate-100 text-slate-500 text-xs font-normal border-slate-200">Offline</Badge>
+      accessorKey: "engine_temp",
+      header: "Temp",
+      cell: ({ row }) => {
+        const temp = row.original.engine_temp || 0;
+        const isHot = temp > 105;
+        return (
+          <div className={`flex items-center gap-1 font-mono font-medium ${isHot ? "text-red-600 animate-pulse font-bold" : "text-slate-600"}`}>
+             <Thermometer size={14} /> {temp}°C
+          </div>
         );
-      }
+      },
     },
+
+    // ✅ NEW COLUMN: Oil Pressure
+    {
+      accessorKey: "oil_pressure",
+      header: "Oil (PSI)",
+      cell: ({ row }) => {
+        const oil = row.original.oil_pressure || 0;
+        const isLow = oil < 20;
+        return (
+          <div className={`flex items-center gap-1 font-mono font-medium ${isLow ? "text-amber-600 font-bold" : "text-slate-600"}`}>
+             <Droplet size={14} /> {oil}
+          </div>
+        );
+      },
+    },
+
+    // ✅ NEW COLUMN: Battery
+    {
+      accessorKey: "battery_voltage",
+      header: "Batt (V)",
+      cell: ({ row }) => (
+          <div className="flex items-center gap-1 font-mono text-slate-600">
+             <Zap size={14} className="text-yellow-500 fill-yellow-500" /> {row.original.battery_voltage}V
+          </div>
+      ),
+    },
+
     {
       accessorKey: "predictedFailure",
-      header: "Predicted Risk",
+      header: "Diagnosis",
       cell: ({ row }) => {
         const prob = row.original.probability;
         return (
-          <span className={`font-medium ${prob >= 85 ? 'text-red-600' : prob >= 70 ? 'text-amber-600' : 'text-slate-600'}`}>
+          <span className={`text-xs font-bold px-2 py-1 rounded ${
+            prob >= 80 ? 'bg-red-100 text-red-700' : 
+            prob >= 50 ? 'bg-amber-100 text-amber-700' : 
+            'bg-slate-100 text-slate-600'
+          }`}>
             {row.original.predictedFailure}
           </span>
         );
       },
     },
     {
-      accessorKey: "probability",
-      header: ({ column }) => (
-        <Button variant="ghost" className="pl-0 hover:bg-transparent" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Risk % <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ getValue }) => {
-        const prob = getValue() as number;
-        return (
-          <div className="flex items-center space-x-2">
-            <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full ${prob >= 85 ? 'bg-red-500' : prob >= 70 ? 'bg-amber-500' : 'bg-green-500'}`}
-                style={{ width: `${prob}%` }}
-              />
-            </div>
-            <span className="text-xs font-medium text-slate-600">{prob}%</span>
-          </div>
-        );
-      }
-    },
-    {
       accessorKey: "action",
       header: "Status",
       cell: ({ getValue }) => {
         const status = getValue() as string;
-        let style = 'border-amber-200 bg-amber-50 text-amber-700';
-        if (status === 'Service Booked') style = 'border-green-200 bg-green-50 text-green-700';
-        if (status === 'Customer Contacted') style = 'border-blue-200 bg-blue-50 text-blue-700';
+        let style = 'border-slate-200 bg-slate-50 text-slate-600';
+        if (status.includes('Booked')) style = 'border-green-200 bg-green-50 text-green-700';
+        if (status.includes('Critical')) style = 'border-red-200 bg-red-50 text-red-700 animate-pulse';
         
-        return <Badge variant="outline" className={`text-xs font-normal ${style}`}>{status}</Badge>;
+        return <Badge variant="outline" className={`text-xs font-normal border ${style}`}>{status}</Badge>;
       }
     }
   ], []);
@@ -208,36 +209,23 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: (row, columnId, filterValue) => {
-      const safeValue = (() => {
-        const val = row.getValue(columnId);
-        return typeof val === 'number' ? String(val) : (val as string);
-      })();
-      return safeValue?.toLowerCase().includes(filterValue.toLowerCase());
+      const safeValue = String(row.getValue(columnId) || "");
+      return safeValue.toLowerCase().includes(filterValue.toLowerCase());
     }
   });
 
   // 4. HANDLE EXPORT
   const handleExport = () => {
-    // Get visible rows
     const rows = table.getFilteredRowModel().rows;
-    
     if (!rows || rows.length === 0) {
         alert("No data available to export.");
         return;
     }
 
-    // Define Headers
     const headers = [
-        "VIN",
-        "Model",
-        "Location",
-        "Telematics Status",
-        "Predicted Risk",
-        "Risk Probability (%)",
-        "Current Status"
+        "VIN", "Model", "Temp (C)", "Oil (PSI)", "Batt (V)", "Diagnosis", "Risk %", "Status"
     ];
 
-    // Helper to escape commas
     const escapeCsv = (str: any) => {
         if (str === null || str === undefined) return "";
         const stringValue = String(str);
@@ -245,21 +233,20 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
         return stringValue;
     };
 
-    // Map rows to CSV format
     const csvRows = rows.map(row => {
         const r = row.original;
         return [
             escapeCsv(r.vin),
             escapeCsv(r.model),
-            escapeCsv(r.location),
-            escapeCsv(r.telematics),
+            escapeCsv(r.engine_temp),
+            escapeCsv(r.oil_pressure),
+            escapeCsv(r.battery_voltage),
             escapeCsv(r.predictedFailure),
             escapeCsv(r.probability),
             escapeCsv(r.action)
         ].join(",");
     });
 
-    // Combine and Download
     const csvContent = [headers.join(","), ...csvRows].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -288,8 +275,6 @@ export function VehicleTable({ onSelectVehicle, selectedVehicle }: VehicleTableP
                 className="pl-9 w-64 h-9" 
               />
             </div>
-            
-            <Button variant="outline" size="sm" className="h-9"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
             
             {/* ⚡ EXPORT BUTTON */}
             <Button 
