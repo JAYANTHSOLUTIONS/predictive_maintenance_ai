@@ -35,8 +35,6 @@ def diagnosis_node(state: AgentState) -> AgentState:
     
     # ---------------------------------------------------------
     # 🚨 DEMO MODE CHANGE: DISABLED HEALTH CHECK
-    # We commented this out so even "Healthy" simulated cars 
-    # get a generated report for your presentation.
     # ---------------------------------------------------------
     # if state.get("risk_score", 0) < 20:
     #     state["diagnosis_report"] = "Vehicle is healthy. No issues detected."
@@ -94,7 +92,7 @@ def diagnosis_node(state: AgentState) -> AgentState:
     
     IMPORTANT: Format your response EXACTLY like this template. Use Markdown headers.
     
-    ### 🚨 Critical Faults
+    ### 🚨 Issue Summary
     * **[Code/Issue]**: {issues}
     
     ### 📉 Root Cause Analysis
@@ -120,11 +118,17 @@ def diagnosis_node(state: AgentState) -> AgentState:
     # 4. Save to State
     state["diagnosis_report"] = content
     
-    if "Critical" in content:
+    # ---------------------------------------------------------
+    # 🔍 UPDATED PRIORITY CHECK LOGIC
+    # We check for "Severity: Critical" specifically to avoid matching the header.
+    # ---------------------------------------------------------
+    if "Severity: Critical" in content or "Severity:** Critical" in content:
         state["priority_level"] = "Critical"
-    elif "High" in content:
+    elif "Severity: High" in content or "Severity:** High" in content:
         state["priority_level"] = "High"
     else:
         state["priority_level"] = "Medium"
+
+    print(f"📊 [Diagnosis] Priority set to: {state['priority_level']}")
 
     return state

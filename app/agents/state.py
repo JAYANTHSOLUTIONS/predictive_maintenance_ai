@@ -1,48 +1,35 @@
 from typing import TypedDict, List, Optional, Dict, Any
 
 class AgentState(TypedDict):
-    # Inputs
-    vehicle_id: str
+    # --- 1. CORE INPUTS ---
     vehicle_id: str
     vehicle_metadata: Optional[Dict[str, Any]]
     telematics_data: Optional[Dict[str, Any]]
-    risk_score: int
-    risk_level: str
-    detected_issues: List[str]
-    diagnosis_report: str
-    recommended_action: str
-    priority_level: str
-    customer_script: str
-    customer_decision: str
-    booking_id: Optional[str]
-    error_message: Optional[str]
-    ueba_alert_triggered: bool
     
-    # Data Layer (Populated by DataAnalysisAgent)
-    vehicle_metadata: Optional[Dict[str, Any]]
-    telematics_data: Optional[Dict[str, Any]]
-    
-    # Analysis Layer (Populated by DataAnalysisAgent)
+    # --- 2. ANALYSIS LAYER (Data Analysis) ---
     risk_score: int
-    risk_level: str # LOW, MEDIUM, HIGH, CRITICAL
+    risk_level: str             # LOW, MEDIUM, HIGH, CRITICAL
     detected_issues: List[str]
     
-    # Diagnosis Layer (Populated by DiagnosisAgent)
+    # --- 3. DIAGNOSIS LAYER (Diagnosis Agent) ---
     diagnosis_report: str
     recommended_action: str
     priority_level: str
     
-    # Customer Layer (Populated by CustomerAgent)
+    # --- 4. CUSTOMER LAYER (Customer Engagement) ---
     customer_script: str
-    customer_decision: str # "BOOKED", "DEFERRED", "REJECTED"
+    customer_decision: str      # "BOOKED", "DEFERRED", "REJECTED"
+    # ✅ IMPORTANT: Added this because API needs it for the voice logs
+    voice_transcript: Optional[List[Dict[str, str]]] 
     
-    # Scheduling Layer (Populated by SchedulingAgent)
-    selected_slot: str
+    # --- 5. SCHEDULING LAYER (Scheduling Agent) ---
+    selected_slot: Optional[str]
     booking_id: Optional[str]
     
-    # System Flags
-    error_message: Optional[str]
-    ueba_alert_triggered: bool
+    # --- 6. FEEDBACK & MANUFACTURING (New Features) ---
+    manufacturing_recommendations: Optional[str]
+    feedback_request: Optional[str]
 
-    manufacturing_recommendations: str
-    feedback_request: str
+    # --- 7. SYSTEM FLAGS ---
+    error_message: Optional[str]
+    ueba_alert_triggered: bool

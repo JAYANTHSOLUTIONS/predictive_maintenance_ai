@@ -2,19 +2,19 @@
     "vehicle_id": "V-302",
     "risk_score": 0,
     "detected_issues": [],
-    "diagnosis": "### \ud83d\udea8 Critical Faults\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift detected is likely due to a temporary calibration issue or a loose connection in the sensor wiring, which may be causing inaccurate readings.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic test on the sensor to confirm the drift and identify the specific sensor affected.\n2. Check the sensor wiring and connections for any signs of damage or wear, and perform a calibration check to ensure the sensor is functioning correctly.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium \nNote: The current telematics data (Oil Pressure: 38 psi, Engine Temp: 98 C) is within acceptable ranges for the Mahindra Thar, and the minor sensor drift detected does not indicate a critical fault at this time. However, it is essential to address the issue to prevent potential errors in sensor readings and maintain optimal vehicle performance.",
+    "diagnosis": "### \ud83d\udea8 Issue Summary\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift detected is likely due to a temporary malfunction or calibration issue with the vehicle's sensors, which may be causing inaccurate readings, but given the simulated nature, it does not directly impact the current operational status of the Mahindra Thar based on the provided telematics data.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a system diagnostic to verify the sensor readings and identify any specific sensors that are malfunctioning or drifting.\n2. Perform a general maintenance check as recommended by the official service manual guidelines to ensure all systems are within normal parameters and to potentially reset or recalibrate the affected sensors.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
     "telematics_data": {
-        "engine_temp_c": 120,
-        "oil_pressure_psi": 6.0,
-        "rpm": 897,
-        "battery_voltage": 11.8,
-        "dtc_readable": "P0217"
+        "engine_temp_c": 90,
+        "oil_pressure_psi": 38.0,
+        "rpm": 1050,
+        "battery_voltage": 12.8,
+        "dtc_readable": "None"
     },
     "customer_decision": "BOOKED",
-    "booking_id": "BK-1766556132",
-    "scheduled_date": "2025-12-25 15:00",
-    "voice_transcript": null,
-    "manufacturing_recommendations": "### \ud83c\udfed Design Flaw Analysis\n* **Vulnerability:** The sensor wiring and connections are vulnerable to damage or wear, which can cause temporary calibration issues and minor sensor drift.\n* **Root Cause:** The root cause of the failure is likely due to inadequate quality control measures during the manufacturing process, which may have resulted in loose connections or damaged sensor wiring.\n\n### \ud83d\udd27 Engineering Fix (CAPA)\n* **Hardware Upgrade:** Replace the existing sensor wiring with high-quality, abrasion-resistant cables to prevent damage and wear.\n* **Sensor Logic:** Implement a redundancy check in the sensor logic to cross-validate readings from multiple sensors, ensuring that inaccurate readings from a single sensor do not affect overall system performance.\n* **Fail-Safe Mechanism:** Develop an auto-calibration feature that periodically checks and adjusts sensor readings to prevent drift and ensure accurate measurements.\n\n### \ud83e\uddea Validation Plan\n* **Testing:** Conduct a combination of laboratory testing (e.g., vibration and temperature cycling) and on-vehicle testing (e.g., driving in various environmental conditions) to validate the effectiveness of the engineering fix.\n* **Expected Result:** The implemented corrective and preventive actions are expected to reduce the occurrence of minor sensor drift by 90% and improve overall system reliability by 85%, resulting in enhanced vehicle performance and customer satisfaction.",
+    "booking_id": "BK-1766936889",
+    "scheduled_date": "2025-12-30 09:00",
+    "voice_transcript": [],
+    "manufacturing_recommendations": "",
     "ueba_alerts": [],
     "timestamp": "Just now"
 }

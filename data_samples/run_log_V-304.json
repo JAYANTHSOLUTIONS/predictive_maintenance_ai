@@ -2,19 +2,19 @@
     "vehicle_id": "V-304",
     "risk_score": 0,
     "detected_issues": [],
-    "diagnosis": "### \ud83d\udea8 Critical Faults\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift detected is likely due to a temporary malfunction or calibration issue with one of the vehicle's sensors, which may not be causing any immediate significant problems but should be addressed to prevent potential future issues.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic test to identify the specific sensor experiencing the drift and assess its impact on vehicle performance.\n2. Check the vehicle's maintenance schedule and history to determine if any recent work or repairs may have contributed to the sensor issue, and perform a general maintenance check as recommended by the service manual.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
+    "diagnosis": "### \ud83d\udea8 Issue Summary\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift detected is likely due to a temporary glitch or misalignment in the sensor calibration, which may not be related to the actual engine performance, as indicated by the normal oil pressure and engine temperature readings.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a system diagnostics check to verify the accuracy of the sensor readings and to identify any other potential issues.\n2. Perform a general maintenance check as recommended by the service manual to ensure all systems are functioning within normal parameters.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
     "telematics_data": {
         "engine_temp_c": 119,
-        "oil_pressure_psi": 6.0,
-        "rpm": 1375,
-        "battery_voltage": 11.7,
+        "oil_pressure_psi": 11.0,
+        "rpm": 795,
+        "battery_voltage": 11.6,
         "dtc_readable": "P0217"
     },
     "customer_decision": "BOOKED",
-    "booking_id": "BK-1766556116",
-    "scheduled_date": "2025-12-25 10:00",
-    "voice_transcript": null,
-    "manufacturing_recommendations": "### \ud83c\udfed Design Flaw Analysis\n* **Vulnerability:** The sensor calibration and validation process during the manufacturing stage may have a vulnerability, leading to minor sensor drifts in certain units of the Mahindra XUV700.\n* **Root Cause:** The root cause of the minor sensor drift is likely due to a combination of factors including inadequate sensor testing protocols, insufficient quality control measures during the production process, or potential software glitches affecting sensor calibration.\n\n### \ud83d\udd27 Engineering Fix (CAPA)\n* **Hardware Upgrade:** Implement more robust and reliable sensor hardware that can better withstand environmental factors and operational stress, such as replacing existing sensors with higher-grade components that offer improved accuracy and stability.\n* **Sensor Logic:** Enhance the sensor logic by incorporating advanced algorithms that can detect and adjust for minor sensor drifts in real-time, ensuring that the vehicle's systems are not adversely affected by such anomalies.\n* **Fail-Safe Mechanism:** Develop and integrate a fail-safe mechanism that can automatically detect significant sensor malfunctions or drifts beyond a certain threshold, triggering an alert to the driver and potentially adjusting vehicle performance to prevent accidents or damage.\n\n### \ud83e\uddea Validation Plan\n* **Testing:** Conduct a comprehensive series of tests including bench testing of the new sensor hardware, software-in-the-loop (SIL) testing for the enhanced sensor logic, and hardware-in-the-loop (HIL) testing for the integrated fail-safe mechanism. Additionally, perform road tests under various environmental conditions to validate the effectiveness of the CAPA plan.\n* **Expected Result:** The implementation of the CAPA plan is expected to reduce the incidence of minor sensor drifts and related issues by at least 90%, significantly improving the reliability and safety of the Mahindra XUV700, and enhancing overall customer satisfaction with the vehicle's performance.",
+    "booking_id": "BK-1766936872",
+    "scheduled_date": "2025-12-30 09:00",
+    "voice_transcript": [],
+    "manufacturing_recommendations": "",
     "ueba_alerts": [],
     "timestamp": "Just now"
 }

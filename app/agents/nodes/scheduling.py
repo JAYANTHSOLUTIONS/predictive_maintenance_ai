@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 BOOKINGS_DB = []
 
 # ==========================================
-# 🛠️ SERVICE LOGIC
+# 🛠️ SERVICE LOGIC (Unchanged)
 # ==========================================
 class SchedulerService:
     
@@ -50,17 +50,8 @@ class SchedulerService:
         now = datetime.now()
         
         # For DEMO purposes, let's try to book everything for TOMORROW
-        # This makes it easier to see the conflict logic working on the calendar
         target_date = now + timedelta(days=1)
         
-        # (Optional: Use real logic if you prefer)
-        # if priority == "Critical":
-        #     target_date = now + timedelta(days=1)
-        # elif priority == "High":
-        #     target_date = now + timedelta(days=3)
-        # else:
-        #     target_date = now + timedelta(days=7)
-
         service_note = f"Repair ({priority})"
         formatted_date = target_date.strftime("%Y-%m-%d")
 
@@ -77,7 +68,6 @@ class SchedulerService:
         full_slot_str = f"{formatted_date} {available_time}"
 
         # 3. Create Booking Record
-        # We use a timestamp-based ID to ensure uniqueness
         new_booking = {
             "booking_id": f"BK-{int(now.timestamp())}", 
             "vin": vehicle_id,
@@ -101,47 +91,60 @@ class SchedulerService:
         }
 
 # ==========================================
-# 🤖 AGENT NODE
+# 🤖 AGENT NODE (Updated Logic)
 # ==========================================
 def scheduling_node(state: AgentState) -> AgentState:
-    print("🗓️ [Scheduler] Finding repair slot...")
+    print("🗓️ [Scheduler] Analyzing priority for booking...")
     
-    # Get Priority safely
+    # Get Priority from the upstream Agent (Diagnosis Agent)
+    # Default is "Medium" if not found
     priority = state.get("priority_level", "Medium")
     
-    # --- 🚨 BYPASS LOGIC ENABLED 🚨 ---
-    # We allow auto-booking for ALL priorities for the demo.
-    # To restore strict logic, uncomment the block below:
-    
-    # if priority == "Critical":
-    #    print("🚨 [Scheduler] Critical issue detected. Auto-authorizing booking.")
-    # elif state.get("customer_decision") != "BOOKED":
-    #    print("⏸️ Booking skipped by customer.")
-    #    return state
+    # ---------------------------------------------------------
+    # 🧠 INTELLIGENT SCHEDULING LOGIC
+    # ---------------------------------------------------------
+    should_book = False
 
-    print(f"⚡ [Demo Mode] Auto-booking enabled for {priority} priority.")
+    if priority == "Critical":
+        # Case 1: Critical Issue -> AUTO BOOK (No user permission needed)
+        print("🚨 [Scheduler] Critical issue detected. Auto-authorizing booking.")
+        should_book = True
+        
+    elif state.get("customer_decision") == "BOOKED":
+        # Case 2: Non-Critical but User said "Yes" in Customer Engagement
+        print(f"👤 [Scheduler] Customer explicitly authorized booking for {priority} priority.")
+        should_book = True
+        
+    else:
+        # Case 3: Non-Critical and No User Confirmation -> SKIP
+        print(f"⏸️ [Scheduler] Priority is '{priority}' and no customer confirmation. Skipping booking.")
+        return state
 
-    agent_name = "SchedulingAgent"
-    v_id = state.get("vehicle_id", "Unknown-ID")
+    # ---------------------------------------------------------
+    # ⚡ EXECUTE BOOKING (Only if should_book is True)
+    # ---------------------------------------------------------
+    if should_book:
+        agent_name = "SchedulingAgent"
+        v_id = state.get("vehicle_id", "Unknown-ID")
 
-    try:
-        # Securely call the booking service
-        booking_result = secure_call(
-            agent_name,
-            "SchedulerService",
-            SchedulerService.book_slot,
-            v_id,
-            priority
-        )
-        
-        # EXTRACT DATA
-        state["booking_id"] = booking_result["booking_id"]
-        state["selected_slot"] = booking_result["slot"]
-        
-        print(f"✅ [Scheduler] CONFIRMED! Date: {booking_result['slot']} (ID: {booking_result['booking_id']})")
-        
-    except PermissionError as e:
-        state["error_message"] = str(e)
-        print(f"⛔ [UEBA] BLOCKED: {e}")
+        try:
+            # Securely call the booking service
+            booking_result = secure_call(
+                agent_name,
+                "SchedulerService",
+                SchedulerService.book_slot,
+                v_id,
+                priority
+            )
+            
+            # EXTRACT DATA AND UPDATE STATE
+            state["booking_id"] = booking_result["booking_id"]
+            state["selected_slot"] = booking_result["slot"]
+            
+            print(f"✅ [Scheduler] CONFIRMED! Date: {booking_result['slot']} (ID: {booking_result['booking_id']})")
+            
+        except PermissionError as e:
+            state["error_message"] = str(e)
+            print(f"⛔ [UEBA] BLOCKED: {e}")
 
     return state

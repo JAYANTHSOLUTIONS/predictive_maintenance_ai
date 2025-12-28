@@ -2,19 +2,19 @@
     "vehicle_id": "V-402",
     "risk_score": 0,
     "detected_issues": [],
-    "diagnosis": "### \ud83d\udea8 Critical Faults\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift detected is likely due to a calibration issue or temporary malfunction in the sensor system, which may not be causing immediate damage but could potentially lead to inaccurate readings if not addressed.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a system diagnostics check to verify the extent of the sensor drift and its impact on other vehicle systems.\n2. Perform a calibration of the affected sensor to ensure accuracy and reliability of the data being reported by the telematics system.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
+    "diagnosis": "### \ud83d\udea8 Issue Summary\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The minor sensor drift is likely due to a temporary calibration issue or minor wear on the sensor, which may cause inaccurate readings, but the current telematics data shows the vehicle is operating within normal parameters.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic test on the sensor to confirm the issue and determine if it's a hardware or software problem.\n2. Perform a general maintenance check as recommended by the service manual to ensure all systems are functioning properly and to identify any potential issues that may be contributing to the sensor drift.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
     "telematics_data": {
-        "engine_temp_c": 119,
-        "oil_pressure_psi": 10.0,
-        "rpm": 729,
-        "battery_voltage": 11.8,
+        "engine_temp_c": 115,
+        "oil_pressure_psi": 5.0,
+        "rpm": 709,
+        "battery_voltage": 11.5,
         "dtc_readable": "P0217"
     },
     "customer_decision": "BOOKED",
-    "booking_id": "BK-1766556113",
-    "scheduled_date": "2025-12-25 09:00",
-    "voice_transcript": null,
-    "manufacturing_recommendations": "### \ud83c\udfed Design Flaw Analysis\n* **Vulnerability:** The sensor system's calibration protocol and the lack of redundancy in the sensor's validation process are the specific parts of the design that failed, leading to the minor sensor drift detected in the Honda Elevate.\n* **Root Cause:** The root cause of the failure is attributed to an inadequate calibration procedure and insufficient cross-validation between sensors, which may have resulted from a combination of factors including poor design, inadequate testing, or insufficient consideration of potential failure modes.\n\n### \ud83d\udd27 Engineering Fix (CAPA)\n* **Hardware Upgrade:** Upgrade the sensor system with more advanced and reliable sensors that have built-in self-diagnostic capabilities and can perform automatic calibration checks, ensuring higher accuracy and reliability of the data reported by the telematics system.\n* **Sensor Logic:** Implement an enhanced sensor logic that includes cross-validation between related sensors (e.g., between speed, acceleration, and position sensors) to detect and correct minor sensor drifts before they affect the system's performance, and introduce a voting system among sensors to validate readings and alert the system to potential issues.\n* **Fail-Safe Mechanism:** Develop and integrate a fail-safe mechanism that can detect when a sensor is drifting out of calibration and automatically switch to a redundant sensor or a default safe mode, preventing potential accidents and ensuring the vehicle remains operational until the issue can be addressed.\n\n### \ud83e\uddea Validation Plan\n* **Testing:** Conduct a comprehensive testing plan including Hardware-in-the-Loop (HIL) simulations for at least 1000 hours under various operating conditions, as well as real-world testing on a fleet of Honda Elevate vehicles to validate the effectiveness of the engineering fixes.\n* **Expected Result:** The expected outcome of the CAPA plan is to reduce the incidence of minor sensor drifts by 90% and to ensure that in the event of such a drift, the vehicle's safety and performance are not compromised, leading to an overall improvement in the reliability and safety of the Honda Elevate.",
+    "booking_id": "BK-1766936848",
+    "scheduled_date": "2025-12-29 16:00",
+    "voice_transcript": [],
+    "manufacturing_recommendations": "",
     "ueba_alerts": [],
     "timestamp": "Just now"
 }

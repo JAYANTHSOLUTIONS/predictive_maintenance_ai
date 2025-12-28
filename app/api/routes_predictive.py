@@ -1,27 +1,28 @@
 import json
 import os
+import traceback
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 
-# ✅ IMPORT THE AGENT GRAPH DIRECTLY
-# We use master_agent.invoke() so we can inject the live Simulator data
-from app.agents.master import master_agent
+# ✅ CORRECT IMPORT FROM MASTER
+try:
+    from app.agents.master import master_agent
+except ImportError:
+    print("⚠️ Warning: Could not import 'master_agent' from 'app.agents.master'")
+    master_agent = None
 
 router = APIRouter()
 
-# --- 1. SETUP PATHS ---
+# --- PATHS ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LOG_DIR = os.path.join(BASE_DIR, "data_samples")
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# --- 2. FLEXIBLE INPUT MODEL ---
-# This works for BOTH V-101 (ID only) and Simulator (Full Data)
+# --- MODELS ---
 class PredictiveRequest(BaseModel):
     vehicle_id: str
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    
-    # ✅ Made Optional for V-101 compatibility
     engine_temp_c: Optional[int] = 90
     oil_pressure_psi: Optional[float] = 40.0
     rpm: Optional[int] = 1500
@@ -38,28 +39,19 @@ class AnalyzeResponse(BaseModel):
     manufacturing_insights: Optional[str] = None
     ueba_alerts: Optional[List[Dict[str, Any]]] = []
 
-# --- 3. ENDPOINT ---
+# --- ENDPOINT ---
 @router.post("/run", response_model=AnalyzeResponse)
 async def predict_failure(request: PredictiveRequest):
-    """
-    Handles both manual V-101 checks and live Simulator streams.
-    """
     try:
-        print(f"📡 API received request for: {request.vehicle_id}")
+        print(f"📡 [API] Received Analysis Request for: {request.vehicle_id}")
 
-        # --- LOGIC SPLIT ---
-        # 1. SETUP TELEMATICS DATA
+        if not master_agent:
+            raise HTTPException(status_code=500, detail="AI Agent Graph not loaded on Server.")
+
+        # 1. SETUP TELEMATICS
         if request.vehicle_id == "V-101":
-            # 🛠️ V-101 LOGIC: Use Defaults (Healthy/Test Mode)
-            telematics_payload = {
-                "engine_temp_c": 85,
-                "oil_pressure_psi": 45,
-                "rpm": 1200,
-                "battery_voltage": 24.2,
-                "dtc_readable": "None"
-            }
+            telematics_payload = {"engine_temp_c": 85, "oil_pressure_psi": 45, "rpm": 1200, "battery_voltage": 24.2, "dtc_readable": "None"}
         else:
-            # 🚛 OTHER VEHICLES: Use Live Simulator Data
             telematics_payload = {
                 "engine_temp_c": request.engine_temp_c,
                 "oil_pressure_psi": request.oil_pressure_psi,
@@ -68,11 +60,11 @@ async def predict_failure(request: PredictiveRequest):
                 "dtc_readable": request.dtc_readable
             }
 
-        # 2. PREPARE AGENT STATE
+        # 2. PREPARE STATE
         initial_state = {
             "vehicle_id": request.vehicle_id,
             "vehicle_metadata": request.metadata,
-            "telematics_data": telematics_payload, # ✅ Injected here
+            "telematics_data": telematics_payload,
             "detected_issues": [],
             "risk_score": 0,
             "diagnosis_report": "",
@@ -80,26 +72,31 @@ async def predict_failure(request: PredictiveRequest):
             "priority_level": "Low",
             "voice_transcript": [],
             "manufacturing_recommendations": "",
-            "ueba_alert_triggered": False
+            "ueba_alert_triggered": False,
+            # ✅ Add missing optional fields to prevent validation error
+            "customer_script": "",
+            "customer_decision": "PENDING",
+            "selected_slot": None,
+            "booking_id": None,
+            "error_message": None,
+            "feedback_request": None
         }
 
-        # 3. RUN THE AI BRAIN
+        # 3. RUN AGENT
         result = master_agent.invoke(initial_state)
 
-        # 4. UEBA LOGIC (Security Check)
+        # 4. UEBA & LOGGING
         ueba_list = []
         if result.get("ueba_alert_triggered"):
-            ueba_list.append({"message": "Anomalous telemetry pattern detected (Spoofing Risk)"})
+            ueba_list.append({"message": "Anomalous telemetry pattern detected"})
 
-        # 5. SAVE TO JSON (For Dashboard)
         log_path = os.path.join(LOG_DIR, f"run_log_{request.vehicle_id}.json")
-        
         log_data = {
             "vehicle_id": result.get("vehicle_id"),
             "risk_score": result.get("risk_score", 0),
             "detected_issues": result.get("detected_issues", []),
             "diagnosis": result.get("diagnosis_report"),
-            "telematics_data": telematics_payload, # ✅ Save the data we used
+            "telematics_data": telematics_payload,
             "customer_decision": result.get("customer_decision"),
             "booking_id": result.get("booking_id"),
             "scheduled_date": result.get("selected_slot"),
@@ -113,11 +110,10 @@ async def predict_failure(request: PredictiveRequest):
             json.dump(log_data, f, indent=4)
         print(f"💾 [System] Saved run log to {log_path}")
 
-        # 6. RETURN RESPONSE
         return AnalyzeResponse(
             vehicle_id=result["vehicle_id"],
             risk_score=result.get("risk_score", 0),
-            risk_level=result.get("priority_level", "UNKNOWN"), 
+            risk_level=result.get("priority_level", "UNKNOWN").upper(), 
             diagnosis=result.get("diagnosis_report", "No diagnosis generated."),
             customer_script=result.get("customer_script"),
             booking_id=result.get("booking_id"),
@@ -127,7 +123,5 @@ async def predict_failure(request: PredictiveRequest):
 
     except Exception as e:
         print(f"❌ Error in prediction endpoint: {e}")
-        # Print detailed traceback in terminal for debugging
-        import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

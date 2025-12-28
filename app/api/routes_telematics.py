@@ -1,8 +1,12 @@
 import os
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+
 # Keep this import for fallback
-from app.data.repositories import TelematicsRepo 
+try:
+    from app.data.repositories import TelematicsRepo 
+except ImportError:
+    TelematicsRepo = None
 
 router = APIRouter()
 
@@ -17,46 +21,53 @@ async def get_vehicle_stats(vehicle_id: str):
     Priority: Live Simulator Logs (JSON) -> Static Database (Repo)
     """
     
-    # 1. CHECK LIVE SIMULATOR LOGS (Priority for V-102+, BUT EXCLUDE V-101)
-    # We explicitly skip this block for V-101 so it always falls through to the Repo.
-    if vehicle_id != "V-101":
-        json_path = os.path.join(LOG_DIR, f"run_log_{vehicle_id}.json")
-        
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, "r") as f:
-                    data = json.load(f)
-                    tele = data.get("telematics_data", {})
-                    
-                    # Return standardized format for Frontend
-                    return {
-                        "vehicle_id": vehicle_id,
-                        "engine_temp_c": tele.get("engine_temp_c", 0),
-                        "oil_pressure_psi": tele.get("oil_pressure_psi", 0.0),
-                        "rpm": tele.get("rpm", 0),
-                        # ✅ Return Battery so the new card works
-                        "battery_voltage": tele.get("battery_voltage", 24.0),
-                        "dtc_readable": tele.get("dtc_readable", "None")
-                    }
-            except Exception as e:
-                print(f"⚠️ Error reading log for {vehicle_id}: {e}")
-
-    # 2. FALLBACK TO REPO (This runs for V-101 OR if log is missing)
-    data = TelematicsRepo.get_latest_telematics(vehicle_id)
+    # 1. CHECK LIVE SIMULATOR LOGS (Now enabled for ALL vehicles)
+    json_path = os.path.join(LOG_DIR, f"run_log_{vehicle_id}.json")
     
-    if data:
-        # Ensure fallback data also has the fields we need
-        if "battery_voltage" not in data:
-            data["battery_voltage"] = 24.1
-        return data
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                data = json.load(f)
+                tele = data.get("telematics_data", {})
+                
+                # ✅ DEBUG: Print to confirm we are reading the file
+                print(f"📂 [Telematics API] Reading JSON for {vehicle_id}: Temp={tele.get('engine_temp_c')}")
 
-    # 3. IF TOTALLY MISSING (Prevent Frontend Crash)
-    print(f"❌ Vehicle {vehicle_id} not found anywhere. Returning dummy data.")
+                return {
+                    "vehicle_id": vehicle_id,
+                    
+                    # ✅ FIX: Map JSON keys ('_c') to Frontend expected keys (standard)
+                    "engine_temp": tele.get("engine_temp_c", 90),       # Frontend expects 'engine_temp'
+                    "engine_temp_c": tele.get("engine_temp_c", 90),     # Backup
+                    
+                    "oil_pressure": tele.get("oil_pressure_psi", 40),   # Frontend expects 'oil_pressure'
+                    "oil_pressure_psi": tele.get("oil_pressure_psi", 40),
+                    
+                    "rpm": tele.get("rpm", 1000),
+                    "battery_voltage": tele.get("battery_voltage", 24.0),
+                    "fuel_level": tele.get("fuel_level_percent", 50),
+                    
+                    "dtc_readable": tele.get("dtc_readable", "System Healthy"),
+                    "status": "Online (AI Monitored)"
+                }
+        except Exception as e:
+            print(f"⚠️ Error reading log for {vehicle_id}: {e}")
+
+    # 2. FALLBACK TO REPO (If file doesn't exist)
+    print(f"💾 [Telematics API] JSON not found for {vehicle_id}. Using Repo.")
+    if TelematicsRepo:
+        data = TelematicsRepo.get_latest_telematics(vehicle_id)
+        if data:
+            if "battery_voltage" not in data:
+                data["battery_voltage"] = 24.1
+            return data
+
+    # 3. IF TOTALLY MISSING
     return {
         "vehicle_id": vehicle_id,
-        "engine_temp_c": 0,
-        "oil_pressure_psi": 0,
+        "engine_temp": 0,
+        "oil_pressure": 0,
         "rpm": 0,
-        "battery_voltage": 0,
+        "battery_voltage": 24.0,
         "dtc_readable": "No Connection"
     }

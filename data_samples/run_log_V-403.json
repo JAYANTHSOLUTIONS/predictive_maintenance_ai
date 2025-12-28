@@ -2,19 +2,19 @@
     "vehicle_id": "V-403",
     "risk_score": 0,
     "detected_issues": [],
-    "diagnosis": "### \ud83d\udea8 Critical Faults\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The primary cause of the issue is likely a minor calibration problem or temporary malfunction in one of the vehicle's sensors, which is causing a slight deviation in the sensor readings.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic test on the vehicle's sensor system to identify the specific sensor causing the drift and assess its impact on vehicle performance.\n2. Perform a general maintenance check as recommended by the service manual to ensure all systems are functioning correctly and to rule out any other potential issues.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
+    "diagnosis": "### \ud83d\udea8 Issue Summary\n* **[Code/Issue]**: Minor sensor drift detected (Simulated)\n\n### \ud83d\udcc9 Root Cause Analysis\n* **Primary Cause:** The primary cause of the issue is likely a minor malfunction in one of the vehicle's sensors, which is causing a slight deviation in the data it is reporting, such as oil pressure or engine temperature.\n\n### \ud83d\udee0\ufe0f Immediate Action Plan\n1. Run a diagnostic test on the vehicle's sensor systems to identify the specific sensor that is malfunctioning and to determine the extent of the drift.\n2. Perform a general maintenance check on the vehicle, including checking the oil and fluid levels, as recommended by the official service manual guidelines.\n\n### \u26a0\ufe0f Risk Assessment\n* **Severity:** Medium",
     "telematics_data": {
-        "engine_temp_c": 118,
-        "oil_pressure_psi": 11.0,
-        "rpm": 556,
-        "battery_voltage": 11.5,
-        "dtc_readable": "P0217"
+        "engine_temp_c": 85,
+        "oil_pressure_psi": 43.0,
+        "rpm": 567,
+        "battery_voltage": 12.1,
+        "dtc_readable": "None"
     },
     "customer_decision": "BOOKED",
-    "booking_id": "BK-1766556122",
-    "scheduled_date": "2025-12-25 12:00",
-    "voice_transcript": null,
-    "manufacturing_recommendations": "### \ud83c\udfed Design Flaw Analysis\n* **Vulnerability:** The sensor calibration and validation process appears to be inadequate, allowing a minor sensor drift to affect vehicle performance.\n* **Root Cause:** The root cause of the issue is likely due to insufficient testing and validation of the sensor system during the design and development phase, potentially exacerbated by a lack of robust calibration procedures.\n\n### \ud83d\udd27 Engineering Fix (CAPA)\n* **Hardware Upgrade:** Implement redundant sensor systems to provide cross-validation and improve overall system reliability.\n* **Sensor Logic:** Develop and integrate advanced sensor fusion algorithms to detect and correct minor sensor drifts, ensuring accurate readings and vehicle performance.\n* **Fail-Safe Mechanism:** Design and implement an automatic system reset or notification to alert the driver and service team of potential sensor issues, preventing further system degradation.\n\n### \ud83e\uddea Validation Plan\n* **Testing:** Conduct a combination of Hardware-in-the-Loop (HIL) simulation, vehicle testing, and accelerated life testing for a minimum of 1000 hours to validate the effectiveness of the proposed fixes.\n* **Expected Result:** Achieve a reduction in sensor-related field failures by at least 90%, ensuring improved vehicle reliability, performance, and customer satisfaction.",
+    "booking_id": "BK-1766936880",
+    "scheduled_date": "2025-12-30 09:00",
+    "voice_transcript": [],
+    "manufacturing_recommendations": "",
     "ueba_alerts": [],
     "timestamp": "Just now"
 }

@@ -29,16 +29,28 @@ def customer_node(state: AgentState) -> AgentState:
     diagnosis = state.get("diagnosis_report", "Maintenance Required")
     priority = state.get("priority_level", "Medium")
 
+    # ---------------------------------------------------------
+    # 🔄 DYNAMIC PROMPT LOGIC (Based on Priority)
+    # ---------------------------------------------------------
+    if priority == "Critical":
+        # Case 1: Critical - Inform them about Auto-Booking
+        instruction = "This is a CRITICAL safety alert. Inform them that a service slot is being auto-scheduled immediately to prevent failure."
+    else:
+        # Case 2: Normal - Ask for permission
+        instruction = "Advise them to schedule a repair soon. Ask them to reply 'YES' to confirm a booking for tomorrow."
+
     # Prompt the AI to write a message
     prompt = f"""
     You are a Service Advisor at a Truck Dealership.
     Write a short, professional text message to {owner}.
     
-    Topic: Their {model} needs urgent repair.
+    Topic: Their {model} needs attention.
     Diagnosis Summary: {diagnosis}
     Priority: {priority}
     
-    Constraint: Keep it under 50 words. Ask them to confirm a booking for tomorrow.
+    Action Required: {instruction}
+    
+    Constraint: Keep it under 50 words. Be direct.
     """
 
     try:
@@ -48,10 +60,18 @@ def customer_node(state: AgentState) -> AgentState:
     except Exception as e:
         print(f"❌ Customer Agent LLM Error: {e}")
         # Fallback
-        state["customer_script"] = f"Urgent: Your {model} requires service. Please contact us to book an appointment."
+        state["customer_script"] = f"Urgent: Your {model} requires service. Please contact us."
 
-    # Simulating the customer saying "YES" because it's Critical
-    print(f"📞 [Customer] Message sent to {owner}. Waiting for reply...")
-    state["customer_decision"] = "BOOKED" 
+    # ---------------------------------------------------------
+    # 🎭 DEMO SIMULATION: USER DECISION
+    # ---------------------------------------------------------
+    if priority == "Critical":
+        print(f"🚨 [Customer] Critical Alert Sent. System assuming Authorization.")
+        state["customer_decision"] = "AUTO_AUTHORIZED"
+    else:
+        # For Demo purposes, we simulate the user saying "YES" (BOOKED).
+        # In a real app, you would wait for an SMS reply here.
+        print(f"📞 [Customer] Message sent. Simulating user reply: 'YES, please book.'")
+        state["customer_decision"] = "BOOKED" 
     
     return state
