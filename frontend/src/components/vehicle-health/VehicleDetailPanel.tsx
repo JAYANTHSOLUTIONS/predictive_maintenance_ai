@@ -40,7 +40,7 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
     setLoading(false);
   }, [vehicleId, loading]);
 
-  // --- 3. DATA FETCHING LOOP ---
+  // --- 3. DATA FETCHING LOOP (Effect 1: Only Fetches Data) ---
   useEffect(() => {
     let isMounted = true;
 
@@ -62,16 +62,6 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
           // Keep last 15 points for a smooth graph
           return [...prev, newPoint].slice(-15);
         });
-
-        // ⚡ AUTO-TRIGGER LOGIC
-        // If critical AND no report yet AND not loading AND haven't run yet...
-        const isCritical = data.engine_temp_c > 98 || data.oil_pressure_psi < 20;
-
-        if (isCritical && !analysis && !loading && !hasAutoRun.current) {
-            console.log("⚠️ Critical Threshold Met! Auto-Running AI...");
-            hasAutoRun.current = true; // Lock immediately
-            handleRunAI(true);
-        }
       }
     };
 
@@ -82,9 +72,25 @@ export function VehicleDetailPanel({ vehicleId, onClose }: VehicleDetailPanelPro
         isMounted = false;
         clearInterval(interval);
     };
-  }, [vehicleId, analysis, loading, handleRunAI]);
+  }, [vehicleId]); // ✅ Only depends on VehicleID (Stable Loop)
 
-  // --- 4. EXPORT FUNCTION ---
+  // --- 4. AUTO-TRIGGER LOGIC (Effect 2: Watches Data & Runs AI) ---
+  useEffect(() => {
+    if (!telematics) return;
+
+    // Check Critical Thresholds
+    const isCritical = telematics.engine_temp_c > 98 || telematics.oil_pressure_psi < 20;
+
+    // Logic: If Critical AND No Report Yet AND Not Loading AND Haven't Auto-run yet
+    if (isCritical && !analysis && !loading && !hasAutoRun.current) {
+        console.log("⚠️ Critical Threshold Met! Auto-Running AI...");
+        hasAutoRun.current = true; // Lock immediately
+        handleRunAI(true);
+    }
+  }, [telematics, analysis, loading, handleRunAI]); 
+
+
+  // --- 5. EXPORT FUNCTION ---
   const handleExport = () => {
     if (!analysis) return;
 
@@ -122,7 +128,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-full md:w-3/4 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200 flex flex-col">
+    <div className="fixed inset-y-0 right-0 w-full md:w-3/4 lg:w-1/2 bg-white shadow-2xl z-50 overflow-y-auto border-l border-slate-200 flex flex-col animate-in slide-in-from-right duration-300">
       
       {/* --- HEADER --- */}
       <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between sticky top-0 backdrop-blur-sm z-10">
@@ -163,7 +169,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
 
       <div className="p-6 space-y-6 flex-1">
         
-        {/* --- 1. LIVE SENSOR GRID (Updated Grid for 4 Items) --- */}
+        {/* --- 1. LIVE SENSOR GRID --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* TEMP */}
             <Card className={`border-l-4 ${telematics?.engine_temp_c && telematics.engine_temp_c > 98 ? 'border-l-red-500 bg-red-50/50' : 'border-l-slate-300'}`}>
@@ -189,7 +195,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                 </CardContent>
             </Card>
 
-            {/* BATTERY (NEW) */}
+            {/* BATTERY */}
             <Card className="border-l-4 border-l-yellow-400">
                 <CardContent className="p-4 flex flex-col items-center justify-center">
                     <div className="flex items-center gap-2 text-slate-500 mb-1">
@@ -267,7 +273,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                 </div>
               </div>
               
-              {/* Security Alert (Fixed TS Errors) */}
+              {/* Security Alert */}
               {analysis.ueba_alerts && analysis.ueba_alerts.length > 0 && (
                   <div className="bg-red-50 border border-red-200 p-4 rounded-md flex gap-3 items-start">
                       <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -305,7 +311,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
           </Card>
         )}
 
-        {/* --- 4. REAL-TIME CHART (With Battery) --- */}
+        {/* --- 4. REAL-TIME CHART --- */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Live Telemetry Stream</CardTitle>
@@ -320,7 +326,7 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                     {/* Left Axis for Temp/Pressure */}
                     <YAxis yAxisId="left" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
                     
-                    {/* Right Axis for Battery Voltage (Small numbers) */}
+                    {/* Right Axis for Battery Voltage */}
                     <YAxis yAxisId="right" orientation="right" domain={[20, 30]} tick={{fontSize: 12, fill: '#eab308'}} tickLine={false} axisLine={false} />
 
                     <Tooltip 
@@ -330,7 +336,6 @@ ${analysis.manufacturing_insights || 'No engineering feedback provided.'}
                     <Legend />
                     <Line yAxisId="left" type="monotone" dataKey="engineTemp" stroke="#ef4444" name="Temp (°C)" strokeWidth={2} dot={false} />
                     <Line yAxisId="left" type="monotone" dataKey="oilPressure" stroke="#f59e0b" name="Oil (PSI)" strokeWidth={2} dot={false} />
-                    {/* Battery Line */}
                     <Line yAxisId="right" type="monotone" dataKey="battery" stroke="#eab308" name="Batt (V)" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                   </LineChart>
                 </ResponsiveContainer>

@@ -1,14 +1,5 @@
 import * as React from 'react';
 import Drawer from '@mui/material/Drawer';
-import {
-  LayoutDashboard,
-  Activity,
-  Calendar,
-  Factory,
-  Shield,
-  ChevronRight,
-  Cpu,
-} from 'lucide-react';
 import { cn } from '../ui/utils';
 
 interface SidebarProps {
@@ -19,11 +10,11 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { id: 'dashboard', label: 'Master Dashboard', icon: LayoutDashboard },
-  { id: 'vehicle-health', label: 'Vehicle Health & Predictive', icon: Activity },
-  { id: 'scheduling', label: 'Service Scheduling', icon: Calendar },
-  { id: 'manufacturing', label: 'Manufacturing Insights', icon: Factory },
-  { id: 'security', label: 'Security & UEBA', icon: Shield },
+  { id: 'dashboard', label: 'Master Dashboard' },
+  { id: 'vehicle-health', label: 'Vehicle Health & Predictive' },
+  { id: 'scheduling', label: 'Service Scheduling' },
+  { id: 'manufacturing', label: 'Manufacturing Insights' },
+  { id: 'security', label: 'Security & UEBA' },
 ];
 
 export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarProps) {
@@ -33,12 +24,9 @@ export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarPro
       className="w-80 bg-white flex flex-col h-full" 
       role="presentation"
     >
-      {/* Logo */}
+      {/* Logo Section (Icon removed) */}
       <div className="p-6 border-b border-slate-200">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-            <Cpu className="w-6 h-6 text-white" />
-          </div>
+        <div className="flex items-center">
           <div>
             <h1 className="text-lg font-bold text-slate-900">PredictAI</h1>
             <p className="text-xs text-slate-500">Platform v2.5</p>
@@ -46,17 +34,16 @@ export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarPro
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation (Icons removed) */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
-          const Icon = item.icon;
           const isActive = currentPage === item.id;
           return (
             <button
               key={item.id}
               onClick={() => {
                 onNavigate(item.id);
-                // onClose(); // Uncomment if you want the drawer to close immediately upon clicking a link
+                // onClose(); 
               }}
               className={cn(
                 'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200',
@@ -65,11 +52,9 @@ export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarPro
                   : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-1'
               )}
             >
-              <div className="flex items-center space-x-3">
-                <Icon className="w-5 h-5" />
+              <div className="flex items-center">
                 <span className="text-sm font-medium">{item.label}</span>
               </div>
-              {isActive && <ChevronRight className="w-4 h-4" />}
             </button>
           );
         })}
@@ -95,7 +80,7 @@ export function Sidebar({ currentPage, onNavigate, isOpen, onClose }: SidebarPro
 
   return (
     <Drawer
-      anchor="left" // ✅ CHANGED: Now opens from the Left
+      anchor="left"
       open={isOpen}
       onClose={onClose}
     >

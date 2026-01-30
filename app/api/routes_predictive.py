@@ -4,6 +4,7 @@ import traceback
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from database import supabase  # ✅ IMPORTED SUPABASE CLIENT
 
 # ✅ CORRECT IMPORT FROM MASTER
 try:
@@ -14,12 +15,7 @@ except ImportError:
 
 router = APIRouter()
 
-# --- PATHS ---
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LOG_DIR = os.path.join(BASE_DIR, "data_samples")
-os.makedirs(LOG_DIR, exist_ok=True)
-
-# --- MODELS ---
+# --- MODELS (UNCHANGED) ---
 class PredictiveRequest(BaseModel):
     vehicle_id: str
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -48,7 +44,7 @@ async def predict_failure(request: PredictiveRequest):
         if not master_agent:
             raise HTTPException(status_code=500, detail="AI Agent Graph not loaded on Server.")
 
-        # 1. SETUP TELEMATICS
+        # 1. SETUP TELEMATICS (UNCHANGED)
         if request.vehicle_id == "V-101":
             telematics_payload = {"engine_temp_c": 85, "oil_pressure_psi": 45, "rpm": 1200, "battery_voltage": 24.2, "dtc_readable": "None"}
         else:
@@ -60,7 +56,7 @@ async def predict_failure(request: PredictiveRequest):
                 "dtc_readable": request.dtc_readable
             }
 
-        # 2. PREPARE STATE
+        # 2. PREPARE STATE (UNCHANGED)
         initial_state = {
             "vehicle_id": request.vehicle_id,
             "vehicle_metadata": request.metadata,
@@ -73,7 +69,6 @@ async def predict_failure(request: PredictiveRequest):
             "voice_transcript": [],
             "manufacturing_recommendations": "",
             "ueba_alert_triggered": False,
-            # ✅ Add missing optional fields to prevent validation error
             "customer_script": "",
             "customer_decision": "PENDING",
             "selected_slot": None,
@@ -82,34 +77,41 @@ async def predict_failure(request: PredictiveRequest):
             "feedback_request": None
         }
 
-        # 3. RUN AGENT
+        # 3. RUN AGENT (UNCHANGED)
         result = master_agent.invoke(initial_state)
 
-        # 4. UEBA & LOGGING
+        # 4. UEBA & LOGGING (ALTERED FOR SUPABASE)
         ueba_list = []
         if result.get("ueba_alert_triggered"):
             ueba_list.append({"message": "Anomalous telemetry pattern detected"})
 
-        log_path = os.path.join(LOG_DIR, f"run_log_{request.vehicle_id}.json")
-        log_data = {
+        # ✅ NEW: BUILD SUPABASE PAYLOAD
+        db_log = {
             "vehicle_id": result.get("vehicle_id"),
-            "risk_score": result.get("risk_score", 0),
-            "detected_issues": result.get("detected_issues", []),
-            "diagnosis": result.get("diagnosis_report"),
-            "telematics_data": telematics_payload,
-            "customer_decision": result.get("customer_decision"),
-            "booking_id": result.get("booking_id"),
-            "scheduled_date": result.get("selected_slot"),
-            "voice_transcript": result.get("voice_transcript"),
-            "manufacturing_recommendations": result.get("manufacturing_recommendations"),
-            "ueba_alerts": ueba_list,
-            "timestamp": "Just now"
+            "timestamp_utc": "now()",  # Postgres timestamp
+            "engine_temp_c": telematics_payload.get("engine_temp_c"),
+            "oil_pressure_psi": telematics_payload.get("oil_pressure_psi"),
+            "rpm": telematics_payload.get("rpm"),
+            "battery_voltage": telematics_payload.get("battery_voltage"),
+            "vibration_level": result.get("priority_level", "NORMAL").upper(),
+            "active_dtc_codes": result.get("detected_issues", []),
+            "raw_payload": result  # Preserve the full AI JSON output
         }
 
-        with open(log_path, "w") as f:
-            json.dump(log_data, f, indent=4)
-        print(f"💾 [System] Saved run log to {log_path}")
+        # ✅ NEW: INSERT LOG TO CLOUD
+        try:
+            supabase.table("telematics_logs").insert(db_log).execute()
+            
+            # ✅ NEW: UPDATE MAIN VEHICLE RISK SCORE
+            supabase.table("vehicles").update({
+                "risk_score": result.get("risk_score", 0)
+            }).eq("id", request.vehicle_id).execute()
+            
+            print(f"☁️ [Supabase] Log and Risk Score synced for {request.vehicle_id}")
+        except Exception as db_err:
+            print(f"⚠️ Warning: Cloud sync failed but AI finished: {db_err}")
 
+        # 5. RETURN RESPONSE (UNCHANGED)
         return AnalyzeResponse(
             vehicle_id=result["vehicle_id"],
             risk_score=result.get("risk_score", 0),

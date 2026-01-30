@@ -4,21 +4,22 @@
   "vehicles": {
     "V-101": {
       "metadata": {
-        "model": "Mahindra Scorpio Classic",
+        "model": "Mahindra BE 6 Batman Edition",
         "year": 2022,
         "owner": "Logistics Corp"
       },
       "telematics": {
-        "engine_temp_c": 145,
-        "oil_pressure_psi": 75,
+        "engine_temp_c": 113,
+        "oil_pressure_psi": 0,
         "active_dtc_codes": [
-          "P0217"
+          "P0217",
+          "P0524"
         ],
-        "rpm": 4190,
+        "rpm": 3837,
         "vibration_level": "HIGH",
-        "vibration_hz": 68.5,
-        "battery_voltage": 24.6,
-        "fuel_level_percent": 41,
+        "vibration_hz": 59.73,
+        "battery_voltage": 24.3,
+        "fuel_level_percent": 52,
         "gps_location": {
           "lat": 28.7041,
           "lon": 77.1025
@@ -33,7 +34,7 @@
     },
     "V-301": {
       "metadata": {
-        "model": "Mahindra XUV 3XO",
+        "model": "Mahindra BE 6",
         "year": 2024,
         "owner": "Urban Fleet"
       },
@@ -52,7 +53,7 @@
     },
     "V-302": {
       "metadata": {
-        "model": "Mahindra Thar",
+        "model": "Mahindra XEV 9S",
         "year": 2023,
         "owner": "Adventure Tours"
       },
@@ -71,7 +72,7 @@
     },
     "V-303": {
       "metadata": {
-        "model": "Mahindra Scorpio N",
+        "model": "MG Windsor EV",
         "year": 2023,
         "owner": "Rental Service"
       },
@@ -90,7 +91,7 @@
     },
     "V-304": {
       "metadata": {
-        "model": "Mahindra XUV700",
+        "model": "BMW I7",
         "year": 2024,
         "owner": "Executive Transport"
       },
@@ -109,7 +110,7 @@
     },
     "V-401": {
       "metadata": {
-        "model": "Honda City",
+        "model": "Audi e-tron GT",
         "year": 2023,
         "owner": "Corporate Lease"
       },
@@ -128,7 +129,7 @@
     },
     "V-402": {
       "metadata": {
-        "model": "Honda Elevate",
+        "model": "Volvo EC40",
         "year": 2024,
         "owner": "Corporate Lease"
       },
@@ -147,7 +148,7 @@
     },
     "V-403": {
       "metadata": {
-        "model": "Honda City Hybrid eHEV",
+        "model": "Porsche Taycan",
         "year": 2024,
         "owner": "Eco Cabs"
       },

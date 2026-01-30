@@ -1,20 +1,27 @@
-import paho.mqtt.client as mqtt
-import json
+import sys
 import os
+import json
 import random
 import time
+
+# ✅ STEP 1: SOLVE IMPORT ERROR
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
+try:
+    import paho.mqtt.client as mqtt
+    from database import supabase 
+except ImportError as e:
+    print(f"❌ Initialization Error: {e}")
+    sys.exit(1)
 
 # --- CONFIGURATION ---
 MQTT_BROKER = "test.mosquitto.org"
 MQTT_TOPIC = "hackathon/truck/v101/telematics"
 
-# FILE PATHS
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DATA_FILE = os.path.join(BASE_DIR, "data_samples", "collected_data.json")
-
 # --- DATA SIMULATION ENGINE ---
 def enrich_telematics(real_temp, real_oil):
-    # 1. RPM Logic
     if real_temp > 105:
         sim_rpm = random.randint(3500, 4500)
     elif real_oil < 20:
@@ -22,7 +29,6 @@ def enrich_telematics(real_temp, real_oil):
     else:
         sim_rpm = random.randint(1200, 2200)
 
-    # 2. Vibration Sensor
     if sim_rpm > 4000 or real_oil < 15:
         sim_vibration = "HIGH"
         vib_hz = random.uniform(50.5, 80.0)
@@ -30,11 +36,7 @@ def enrich_telematics(real_temp, real_oil):
         sim_vibration = "NORMAL"
         vib_hz = random.uniform(10.0, 25.0)
 
-    # 3. Battery Voltage
-    if sim_rpm < 600:
-        sim_voltage = round(random.uniform(21.5, 23.0), 1)
-    else:
-        sim_voltage = round(random.uniform(24.1, 25.5), 1)
+    sim_voltage = round(random.uniform(21.5, 23.0), 1) if sim_rpm < 600 else round(random.uniform(24.1, 25.5), 1)
 
     return {
         "rpm": sim_rpm,
@@ -42,8 +44,7 @@ def enrich_telematics(real_temp, real_oil):
         "vibration_hz": round(vib_hz, 2),
         "battery_voltage": sim_voltage,
         "fuel_level_percent": random.randint(40, 65),
-        "gps_location": {"lat": 28.7041, "lon": 77.1025},
-        "tire_pressure_bar": [7.1, 7.0, 6.9, 7.1]
+        "gps_location": {"lat": 28.7041, "lon": 77.1025}
     }
 
 # --- MQTT HANDLERS ---
@@ -54,48 +55,48 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
+        v_id = payload.get("vehicle_id", "V-101")
         real_temp = payload.get("engine_temp_c", 0)
         real_oil = payload.get("oil_pressure_psi", 0)
         real_codes = payload.get("active_dtc_codes", [])
 
+        # Enrich the raw data
         rich_data = enrich_telematics(real_temp, real_oil)
 
-        final_telematics = {
+        # ✅ STEP 2: BUILD DB PAYLOAD
+        db_payload = {
+            "vehicle_id": v_id,
+            "timestamp_utc": "now()",
             "engine_temp_c": real_temp,
             "oil_pressure_psi": real_oil,
+            "rpm": rich_data["rpm"],
+            "battery_voltage": rich_data["battery_voltage"],
+            "vibration_level": rich_data["vibration_level"],
+            "vibration_hz": rich_data["vibration_hz"],
+            "fuel_level_percent": rich_data["fuel_level_percent"],
+            "gps_lat": rich_data["gps_location"]["lat"],
+            "gps_lon": rich_data["gps_location"]["lon"],
             "active_dtc_codes": real_codes,
-            **rich_data
+            "raw_payload": {**payload, **rich_data} 
         }
 
-        # --- UPDATED PRINT STATEMENT ---
-        print(f"📥 LIVE: Temp={real_temp}°C | Oil={real_oil} PSI | RPM={rich_data['rpm']} | Batt={rich_data['battery_voltage']}V")
-
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE, "r") as f:
-                db = json.load(f)
-        else:
-            db = {"vehicles": {}}
-
-        if "vehicles" not in db: db["vehicles"] = {}
-        if "V-101" not in db["vehicles"]: 
-            db["vehicles"]["V-101"] = {
-                "metadata": {"model": "HeavyHaul X5", "owner": "Logistics Corp"},
-                "telematics": {}
-            }
-            
-        db["vehicles"]["V-101"]["telematics"] = final_telematics
+        # ✅ STEP 3: PUSH TO SUPABASE
+        supabase.table("telematics_logs").insert(db_payload).execute()
         
-        with open(DATA_FILE, "w") as f:
-            json.dump(db, f, indent=2)
-            
+        # ✅ STEP 4: UPDATED PRINT (Now showing Oil Pressure)
+        print(f"📥 CLOUD SYNC [{v_id}]: Temp={real_temp}°C | Oil={real_oil} PSI | RPM={rich_data['rpm']} | Status=OK")
+
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"❌ Bridge Error: {e}")
 
 # --- START LISTENER ---
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-print("🔌 Smart Bridge Starting...")
-client.connect(MQTT_BROKER, 1883, 60)
-client.loop_forever()
+print("🔌 Smart Cloud Bridge Starting...")
+try:
+    client.connect(MQTT_BROKER, 1883, 60)
+    client.loop_forever()
+except KeyboardInterrupt:
+    print("\n🛑 Bridge stopped.")
