@@ -1,51 +1,62 @@
 from app.agents.state import AgentState
-from app.data.repositories import TelematicsRepo, VehicleRepo
 from app.domain.risk_rules import calculate_risk_score
-
-# IMPORT UEBA
-from app.ueba.middleware import secure_call
+from database import supabase # ✅ Direct DB Access
 
 def data_analysis_node(state: AgentState) -> AgentState:
     v_id = state["vehicle_id"]
-    agent_name = "DataAnalysisAgent" # Identity
-    
-    print(f"🔍 [Analyzer] Requesting secure access for {v_id}...")
+    print(f"🔍 [Analyzer] Querying Supabase for {v_id}...")
 
     try:
-        # 1. Secure Fetch: Vehicle Data
-        # We wrap the Repo call inside secure_call
-        vehicle = secure_call(
-            agent_name, 
-            "VehicleRepo", 
-            VehicleRepo.get_vehicle_details, 
-            v_id
-        )
+        # 1. FETCH METADATA (Owners & Vehicle Info)
+        # We join with the 'owners' table to get contact info for the Customer Agent
+        vehicle_response = supabase.table("vehicles") \
+            .select("*, owners(full_name, phone_number)") \
+            .eq("id", v_id) \
+            .execute()
 
-        # 2. Secure Fetch: Telematics
-        telematics = secure_call(
-            agent_name, 
-            "TelematicsRepo", 
-            TelematicsRepo.get_latest_telematics, 
-            v_id
-        )
-
-        if not vehicle or not telematics:
-            state["error_message"] = f"Vehicle {v_id} not found."
+        if not vehicle_response.data:
+            state["error_message"] = f"Vehicle {v_id} not found in DB."
             return state
 
-        state["vehicle_metadata"] = vehicle
-        state["telematics_data"] = telematics
+        vehicle_data = vehicle_response.data[0]
+        
+        # Flatten Owner Data for easier access by Customer Agent
+        owner_info = vehicle_data.get("owners", {})
+        vehicle_data["owner"] = owner_info.get("full_name", "Valued Customer")
+        vehicle_data["phone"] = owner_info.get("phone_number", "")
 
-        # 3. Calculate Risk (Internal logic doesn't need UEBA, only external data access)
-        risk_assessment = calculate_risk_score(telematics)
-        
-        state["risk_score"] = risk_assessment["score"]
-        state["risk_level"] = risk_assessment["level"]
-        state["detected_issues"] = risk_assessment["reasons"]
-        
+        state["vehicle_metadata"] = vehicle_data
+        state["vin"] = vehicle_data.get("vin") # Critical for logs
+
+        # 2. FETCH TELEMATICS (Latest Sensor Data)
+        telematics_response = supabase.table("telematics_logs") \
+            .select("*") \
+            .eq("vehicle_id", v_id) \
+            .order("timestamp_utc", desc=True) \
+            .limit(1) \
+            .execute()
+
+        if telematics_response.data:
+            t_data = telematics_response.data[0]
+            state["telematics_data"] = t_data
+            
+            # 3. CALCULATE RISK (Using Live DB Data)
+            # Pass the Dict directly to your logic rule engine
+            risk_assessment = calculate_risk_score(t_data)
+            
+            state["risk_score"] = risk_assessment["score"]
+            state["risk_level"] = risk_assessment["level"]
+            state["detected_issues"] = risk_assessment["reasons"]
+        else:
+            # Fallback if vehicle exists but has no logs yet
+            state["risk_score"] = 0
+            state["risk_level"] = "LOW"
+            state["detected_issues"] = ["No Data Available"]
+
         return state
 
-    except PermissionError as e:
+    except Exception as e:
+        print(f"❌ DB Connection Error: {e}")
         state["error_message"] = str(e)
         state["ueba_alert_triggered"] = True
         return state

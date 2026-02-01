@@ -4,7 +4,7 @@ import json
 import random
 import time
 
-# ✅ STEP 1: SOLVE IMPORT ERROR
+# ✅ IMPORT FIX
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
@@ -16,12 +16,25 @@ except ImportError as e:
     print(f"❌ Initialization Error: {e}")
     sys.exit(1)
 
-# --- CONFIGURATION ---
+# --- CONFIGURATION (WILDCARD UPDATE) ---
 MQTT_BROKER = "test.mosquitto.org"
-MQTT_TOPIC = "hackathon/truck/v101/telematics"
+# ✅ மாற்றம் 1: '+' சிம்பல் சேர்தாச்சு. இது எல்லா வண்டிக்கும் பொதுவான வழி.
+MQTT_TOPIC = "hackathon/truck/+/telematics" 
 
 # --- DATA SIMULATION ENGINE ---
-def enrich_telematics(real_temp, real_oil):
+def enrich_telematics(real_temp, real_oil, v_id):
+    # வண்டிக்கு ஏத்த மாதிரி லொகேஷனை மாத்துறோம் (இல்லனா எல்லாம் ஒரே இடத்துல காட்டும்)
+    locations = {
+        "V-101": {"lat": 13.0827, "lon": 80.2707}, # Chennai
+        "V-301": {"lat": 12.9716, "lon": 77.5946}, # Bangalore
+        "V-401": {"lat": 11.0168, "lon": 76.9558}, # Coimbatore
+        "V-402": {"lat": 9.9252,  "lon": 78.1198}  # Madurai
+    }
+    
+    # Default Location (டெல்லி) if ID not found
+    gps = locations.get(v_id, {"lat": 28.7041, "lon": 77.1025})
+
+    # Simulation Logic (Same as before)
     if real_temp > 105:
         sim_rpm = random.randint(3500, 4500)
     elif real_oil < 20:
@@ -44,26 +57,29 @@ def enrich_telematics(real_temp, real_oil):
         "vibration_hz": round(vib_hz, 2),
         "battery_voltage": sim_voltage,
         "fuel_level_percent": random.randint(40, 65),
-        "gps_location": {"lat": 28.7041, "lon": 77.1025}
+        "gps_location": gps 
     }
 
 # --- MQTT HANDLERS ---
 def on_connect(client, userdata, flags, rc):
-    print(f"📡 Connected to MQTT! Listening for Wokwi Data...")
+    print(f"📡 Connected to MQTT! Listening for ALL Trucks...")
     client.subscribe(MQTT_TOPIC)
 
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
-        v_id = payload.get("vehicle_id", "V-101")
+        
+        # ✅ மாற்றம் 2: வண்டி ID-யை மெசேஜ்ல இருந்து எடுக்கிறோம்
+        v_id = payload.get("vehicle_id", "Unknown-V")
+        
         real_temp = payload.get("engine_temp_c", 0)
         real_oil = payload.get("oil_pressure_psi", 0)
         real_codes = payload.get("active_dtc_codes", [])
 
-        # Enrich the raw data
-        rich_data = enrich_telematics(real_temp, real_oil)
+        # Enrich Data (Pass v_id for location)
+        rich_data = enrich_telematics(real_temp, real_oil, v_id)
 
-        # ✅ STEP 2: BUILD DB PAYLOAD
+        # Build DB Payload
         db_payload = {
             "vehicle_id": v_id,
             "timestamp_utc": "now()",
@@ -80,21 +96,20 @@ def on_message(client, userdata, msg):
             "raw_payload": {**payload, **rich_data} 
         }
 
-        # ✅ STEP 3: PUSH TO SUPABASE
+        # Push to Supabase
         supabase.table("telematics_logs").insert(db_payload).execute()
         
-        # ✅ STEP 4: UPDATED PRINT (Now showing Oil Pressure)
-        print(f"📥 CLOUD SYNC [{v_id}]: Temp={real_temp}°C | Oil={real_oil} PSI | RPM={rich_data['rpm']} | Status=OK")
+        print(f"📥 RECEIVED [{v_id}]: Temp={real_temp} | Oil={real_oil} | Loc={rich_data['gps_location']['lat']}")
 
     except Exception as e:
-        print(f"❌ Bridge Error: {e}")
+        print(f"❌ Listener Error: {e}")
 
-# --- START LISTENER ---
+# --- START ---
 client = mqtt.Client()
 client.on_connect = on_connect
 client.on_message = on_message
 
-print("🔌 Smart Cloud Bridge Starting...")
+print("🔌 Universal Bridge Starting...")
 try:
     client.connect(MQTT_BROKER, 1883, 60)
     client.loop_forever()
